@@ -1,0 +1,2 @@
+# Google AdSense ads.txt for coreX Store
+google.com, pub-1991719879684321, DIRECT, f08c47fec0942fa0

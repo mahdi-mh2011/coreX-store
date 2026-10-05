@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PlusSubscriptionSystemSchema",
+  "description": "Database schema definitions for Plus Subscription tier, daily rewards, and transaction throttling.",
+  "definitions": {
+    "User": {
+      "type": "object",
+      "required": ["id", "email", "name", "cardNumber", "walletBalanceIQD", "dailyPurchaseCount", "lastPurchaseDate"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "cardNumber": { "type": "string", "pattern": "^[0-9]{10}$", "description": "10-digit digital card number" },
+        "walletBalanceIQD": { "type": "number", "minimum": 0, "description": "Wallet balance in Iraqi Dinars" },
+        "dailyPurchaseCount": { "type": "integer", "minimum": 0, "description": "Resets daily at 00:00:00" },
+        "lastPurchaseDate": { "type": "string", "format": "date", "description": "YYYY-MM-DD to detect day boundary" },
+        "lastDailyRewardAt": { "type": ["string", "null"], "format": "date-time" },
+        "lastLoginAt": { "type": ["string", "null"], "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Subscription": {
+      "type": "object",
+      "required": ["id", "userId", "tier", "planType", "subscriptionType", "priceIQD", "renewsEveryDays", "status", "currentPeriodStart", "currentPeriodEnd", "expirationDate"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "userId": { "type": "string", "format": "uuid" },
+        "tier": { "type": "string", "enum": ["plus"] },
+        "subscriptionType": { "type": "string", "enum": ["monthly", "yearly"] },
+        "planType": { "type": "string", "enum": ["monthly", "yearly"] },
+        "priceIQD": { "type": "number", "enum": [2000, 15000] },
+        "renewsEveryDays": { "type": "integer", "enum": [30, 365] },
+        "status": { "type": "string", "enum": ["active", "past_due", "canceled", "expired"] },
+        "startsAt": { "type": "string", "format": "date-time" },
+        "currentPeriodStart": { "type": "string", "format": "date-time" },
+        "currentPeriodEnd": { "type": "string", "format": "date-time" },
+        "expirationDate": { "type": "string", "format": "date-time", "description": "Exact expiration date" },
+        "cancellationRequested": { "type": "boolean", "default": false, "description": "User requested cancellation" },
+        "cancellationDate": { "type": ["string", "null"], "format": "date-time" },
+        "cancelAtPeriodEnd": { "type": "boolean", "default": false },
+        "autoRenew": { "type": "boolean", "default": true }
+      }
+    },
+    "DailyReward": {
+      "type": "object",
+      "required": ["id", "userId", "amountIQD", "disbursedAt", "expiresAt", "status"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "userId": { "type": "string", "format": "uuid" },
+        "subscriptionId": { "type": ["string", "null"], "format": "uuid" },
+        "amountIQD": { "type": "number", "const": 50, "description": "Fixed 50 IQD daily grant" },
+        "disbursedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time", "description": "Disbursed time + 7 days window" },
+        "status": { "type": "string", "enum": ["available", "claimed", "expired", "used"] },
+        "claimedAt": { "type": ["string", "null"], "format": "date-time" },
+        "expiredAt": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "Transaction": {
+      "type": "object",
+      "required": ["id", "userId", "type", "amountIQD", "balanceAfterIQD", "status", "createdAt"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "userId": { "type": "string", "format": "uuid" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "subscription_fee",
+            "daily_reward_disbursement",
+            "daily_reward_expired_clawback",
+            "product_purchase",
+            "wallet_recharge",
+            "peer_transfer"
+          ]
+        },
+        "amountIQD": { "type": "number" },
+        "balanceAfterIQD": { "type": "number", "minimum": 0 },
+        "referenceId": { "type": ["string", "null"] },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

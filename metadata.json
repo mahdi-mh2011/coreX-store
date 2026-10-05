@@ -1,0 +1,6 @@
+{
+  "name": "coreX Store",
+  "description": "متجر ومحفظة coreX Store الرقمية المخصصة للهاتف لشحن الأرصدة وبطاقات الألعاب بالدينار العراقي مع نظام الرعايات الأخلاقية ولوحة تحكم الديسكتوب.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
