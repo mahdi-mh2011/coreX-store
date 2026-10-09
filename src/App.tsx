@@ -23,6 +23,7 @@ import {
   Mail,
   Lock,
   User,
+  UserPlus,
   ShoppingBag,
   Gift,
   ArrowRight,
@@ -54,6 +55,7 @@ import {
   ArrowDownLeft,
   Search,
   Eye,
+  EyeOff,
   RefreshCw,
   AlertTriangle,
   Bell,
@@ -66,6 +68,10 @@ import {
   Crown,
   Code2,
   Infinity as InfinityIcon,
+  Moon,
+  Sun,
+  Palette,
+  Contrast,
 } from 'lucide-react';
 import { EthicalAd, INITIAL_ETHICAL_ADS, AdSystemStats } from './data/ethicalAds';
 import { AdSenseSettings, DEFAULT_ADSENSE_SETTINGS, GoogleAdCreative } from './data/adsenseConfig';
@@ -79,8 +85,69 @@ import { PlusArchitectureModal } from './components/PlusArchitectureModal';
 import { AdminAdRevenueSubTab } from './components/AdminAdRevenueSubTab';
 import { DesktopAdminDashboard } from './components/DesktopAdminDashboard';
 
-// The strictly designated Admin Email requested by the user
+// The strictly designated Developer / Admin credentials requested by the user
 export const ADMIN_EMAIL = 'jafarmhmd04@gmail.com';
+export const ADMIN_PASSWORD = 'Mahdi1212';
+
+// Application Theme Type: Midnight Slate vs High Contrast Charcoal ("وضع داكن آخر أكثر تباينًا بلمسات رمادية داكنة")
+export type AppTheme = 'midnight' | 'charcoal';
+
+// Purchased digital code item interface
+export interface PurchasedItem {
+  id: string;
+  title: string;
+  price: number;
+  currency: 'د.ع';
+  code: string;
+  date: string;
+}
+
+// Financial Transaction record interface - strictly in Iraqi Dinars (د.ع)
+export interface Transaction {
+  id: string;
+  type: 'send' | 'receive' | 'buy' | 'recharge';
+  title: string;
+  amount: number; // in Iraqi Dinars (د.ع)
+  date: string;
+  status: 'completed' | 'pending';
+  recipientCardNumber?: string;
+  code?: string;
+}
+
+// User wallet account - Only Name and Card Number ("رقم بطاقتك")
+export interface UserData {
+  name: string;
+  email: string;
+  pass: string;
+  balance: number; // in Iraqi Dinars (د.ع)
+  cardNumber: number | string; // "رقم بطاقتك"
+  joinedDate: string;
+  isAdFreeSubscriber?: boolean;
+  subscriptionPlan?: 'monthly' | 'yearly' | null;
+  subscriptionExpiry?: string | null;
+  dailyPurchaseCount?: number;
+  lastPurchaseDate?: string;
+  lastDailyRewardAt?: string | null;
+  subscriptionTier?: 'free' | 'plus';
+  cancellationRequested?: boolean;
+  cancellationDate?: string | null;
+}
+
+// Default visitor / unauthenticated guest account
+export const DEFAULT_GUEST_USER: UserData = {
+  name: 'زائر المتجر (يرجى تسجيل الدخول)',
+  email: '',
+  pass: '',
+  balance: 0,
+  cardNumber: '0000000000',
+  joinedDate: '2026',
+  isAdFreeSubscriber: false,
+  subscriptionPlan: undefined,
+  subscriptionExpiry: undefined,
+  dailyPurchaseCount: 0,
+  lastPurchaseDate: new Date().toISOString().split('T')[0],
+  subscriptionTier: 'free',
+};
 
 // 10-digit card number generator helper
 export const generate10DigitCardNumber = () => Math.floor(1000000000 + Math.random() * 9000000000).toString();
@@ -117,11 +184,12 @@ export const DEFAULT_NOTIFICATIONS: AppNotification[] = [
   },
 ];
 
-// Stored User Accounts for the Admin Dashboard ("حسابات الأشخاص تخزين و العمولات والمعلومات شكد حولوا شكد سحبوا ورقم بطاقتهم")
+// Stored User Accounts for Admin with Isolated Records ("كل حساب له معاملات خاصه وسجل خاص وكلشي كل حساب يختلف عن حساب")
 export interface StoredUserAccount {
   id: string;
   name: string;
   email: string;
+  pass?: string; // كلمة المرور للحساب
   cardNumber: string; // "رقم بطاقتهم" (10 أرقام)
   balance: number; // الرصيد الحالي (يبدأ من 0 د.ع)
   totalTransferred: number; // شكد حولوا (إجمالي المبالغ المرسلة)
@@ -140,13 +208,103 @@ export interface StoredUserAccount {
   subscriptionExpiry?: string | null;
   cancellationRequested?: boolean;
   cancellationDate?: string | null;
+  transactions?: Transaction[]; // سجل العمليات والمعاملات الخاص بهذا الحساب حصراً
+  purchasedCodes?: PurchasedItem[]; // أكواد البطاقات المشتراة الخاصة بهذا الحساب حصراً
 }
 
+// Scoped Storage Helpers: Every account has completely isolated transactions & records
+export const getUserTransactionsKey = (email: string) => `corex_tx_${email.trim().toLowerCase()}`;
+export const getUserPurchasesKey = (email: string) => `corex_purchases_${email.trim().toLowerCase()}`;
+
+export const loadUserTransactions = (email: string, storedList: StoredUserAccount[]): Transaction[] => {
+  if (!email) return [];
+  const key = getUserTransactionsKey(email);
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  const found = storedList.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+  return found?.transactions ? [...found.transactions] : [];
+};
+
+export const loadUserPurchases = (email: string, storedList: StoredUserAccount[]): PurchasedItem[] => {
+  if (!email) return [];
+  const key = getUserPurchasesKey(email);
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  const found = storedList.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+  return found?.purchasedCodes ? [...found.purchasedCodes] : [];
+};
+
 export const DEFAULT_STORED_USERS: StoredUserAccount[] = [
+  {
+    id: 'usr-dev-01',
+    name: 'جعفر محمد (المطور والمدير العام)',
+    email: 'jafarmhmd04@gmail.com',
+    pass: 'Mahdi1212',
+    cardNumber: '1029384756', // 10 أرقام
+    balance: 999999999, // رصيد غير محدود للمطور
+    totalTransferred: 500000,
+    totalWithdrawnOrSpent: 250000,
+    totalCommission: 25000,
+    transfersCount: 24,
+    purchasesCount: 18,
+    joinedDate: '2026/01/01',
+    lastActive: 'الآن (متصل)',
+    isAdFreeSubscriber: true,
+    subscriptionPlan: 'yearly',
+    subscriptionExpiry: '2027/12/31',
+    transactions: [
+      {
+        id: 'tx-dev-1',
+        type: 'recharge',
+        title: 'إيداع وتأسيس الخزينة المركزية',
+        amount: 999999999,
+        date: '2026/01/01 10:00 ص',
+        status: 'completed',
+      },
+      {
+        id: 'tx-dev-2',
+        type: 'buy',
+        title: 'شراء: بطاقة فيزا coreX الرقمية',
+        amount: -15000,
+        date: '2026/01/02 11:30 ص',
+        status: 'completed',
+        code: 'VISA-CX-9921-4412-8819',
+      },
+      {
+        id: 'tx-dev-3',
+        type: 'receive',
+        title: 'عمولات تحويل الحسابات (+25,000 د.ع)',
+        amount: 25000,
+        date: '2026/01/05 03:00 م',
+        status: 'completed',
+      },
+    ],
+    purchasedCodes: [
+      {
+        id: 'purch-dev-1',
+        title: 'بطاقة فيزا coreX الرقمية',
+        price: 15000,
+        currency: 'د.ع',
+        code: 'VISA-CX-9921-4412-8819',
+        date: '2026/01/02 11:30 ص',
+      },
+    ],
+  },
   {
     id: 'usr-1',
     name: 'أحمد علي حسن',
     email: 'ahmed.ali@gmail.com',
+    pass: '123456',
     cardNumber: '7492018432', // 10 أرقام
     balance: 0,
     totalTransferred: 45000,
@@ -159,68 +317,44 @@ export const DEFAULT_STORED_USERS: StoredUserAccount[] = [
     isAdFreeSubscriber: true,
     subscriptionPlan: 'yearly',
     subscriptionExpiry: '2027/09/15',
-  },
-  {
-    id: 'usr-2',
-    name: 'حيدر الكرخي',
-    email: 'haider.karkh@yahoo.com',
-    cardNumber: '8831920451', // 10 أرقام
-    balance: 0,
-    totalTransferred: 80000,
-    totalWithdrawnOrSpent: 35000,
-    totalCommission: 2400,
-    transfersCount: 5,
-    purchasesCount: 3,
-    joinedDate: '2026/09/18',
-    lastActive: 'منذ 30 دقيقة',
-    isAdFreeSubscriber: false,
-  },
-  {
-    id: 'usr-3',
-    name: 'كرار جاسم',
-    email: 'karrar.jasim@outlook.com',
-    cardNumber: '6310459281', // 10 أرقام
-    balance: 0,
-    totalTransferred: 20000,
-    totalWithdrawnOrSpent: 15000,
-    totalCommission: 800,
-    transfersCount: 2,
-    purchasesCount: 1,
-    joinedDate: '2026/09/22',
-    lastActive: 'منذ يوم',
-    isAdFreeSubscriber: false,
-  },
-  {
-    id: 'usr-4',
-    name: 'مصطفى الربيعي',
-    email: 'mustafa.r@gmail.com',
-    cardNumber: '5129847103', // 10 أرقام
-    balance: 0,
-    totalTransferred: 60000,
-    totalWithdrawnOrSpent: 50000,
-    totalCommission: 2000,
-    transfersCount: 4,
-    purchasesCount: 4,
-    joinedDate: '2026/09/25',
-    lastActive: 'منذ 15 دقيقة',
-    isAdFreeSubscriber: true,
-    subscriptionPlan: 'monthly',
-    subscriptionExpiry: '2026/10/25',
-  },
-  {
-    id: 'usr-5',
-    name: 'عمر التميمي',
-    email: 'omar.tamimi@gmail.com',
-    cardNumber: '4091827365', // 10 أرقام
-    balance: 0,
-    totalTransferred: 15000,
-    totalWithdrawnOrSpent: 10000,
-    totalCommission: 500,
-    transfersCount: 1,
-    purchasesCount: 1,
-    joinedDate: '2026/09/28',
-    lastActive: 'منذ 4 ساعات',
-    isAdFreeSubscriber: false,
+    transactions: [
+      {
+        id: 'tx-ahmed-1',
+        type: 'recharge',
+        title: 'تعبئة رصيد المحفظة',
+        amount: 40000,
+        date: '2026/09/15 01:00 م',
+        status: 'completed',
+      },
+      {
+        id: 'tx-ahmed-2',
+        type: 'buy',
+        title: 'شراء: بطاقة بلايستيشن ستور 10$',
+        amount: -15000,
+        date: '2026/09/16 04:15 م',
+        status: 'completed',
+        code: 'PSN-7731-9920-1142',
+      },
+      {
+        id: 'tx-ahmed-3',
+        type: 'send',
+        title: 'إرسال أموال لرقم البطاقة: 8831920451',
+        amount: -25000,
+        date: '2026/09/20 02:40 م',
+        status: 'completed',
+        recipientCardNumber: '8831920451',
+      },
+    ],
+    purchasedCodes: [
+      {
+        id: 'purch-ahmed-1',
+        title: 'بطاقة بلايستيشن ستور 10$',
+        price: 15000,
+        currency: 'د.ع',
+        code: 'PSN-7731-9920-1142',
+        date: '2026/09/16 04:15 م',
+      },
+    ],
   },
 ];
 
@@ -245,44 +379,6 @@ export interface SupportTicket {
   status?: 'pending' | 'resolved';
 }
 
-// User wallet account - Only Name and Card Number ("رقم بطاقتك")
-export interface UserData {
-  name: string;
-  email: string;
-  pass: string;
-  balance: number; // in Iraqi Dinars (د.ع)
-  cardNumber: number | string; // "رقم بطاقتك"
-  joinedDate: string;
-  isAdFreeSubscriber?: boolean;
-  subscriptionPlan?: 'monthly' | 'yearly' | null;
-  subscriptionExpiry?: string | null;
-  dailyPurchaseCount?: number;
-  lastPurchaseDate?: string;
-  lastDailyRewardAt?: string | null;
-  subscriptionTier?: 'free' | 'plus';
-  cancellationRequested?: boolean;
-  cancellationDate?: string | null;
-}
-
-interface PurchasedItem {
-  id: string;
-  title: string;
-  price: number;
-  currency: 'د.ع';
-  code: string;
-  date: string;
-}
-
-interface Transaction {
-  id: string;
-  type: 'send' | 'receive' | 'buy' | 'recharge';
-  title: string;
-  amount: number; // in Iraqi Dinars (د.ع)
-  date: string;
-  status: 'completed' | 'pending';
-  recipientCardNumber?: string;
-  code?: string;
-}
 
 interface ChatMessage {
   id: string;
@@ -378,21 +474,34 @@ const DEFAULT_PRODUCTS: Product[] = [
 ];
 
 export default function App() {
-  // Navigation tabs: 'store' | 'wallet' | 'settings' | 'admin'
-  const [activeTab, setActiveTab] = useState<'store' | 'wallet' | 'settings' | 'admin'>('store');
-
-  // Authentication State
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('corex_is_logged_in') !== 'false';
+  // Navigation tabs: 'store' | 'wallet' | 'card' | 'settings' | 'admin' - Persists active tab across reloads
+  const [activeTab, setActiveTab] = useState<'store' | 'wallet' | 'card' | 'settings' | 'admin'>(() => {
+    try {
+      const saved = localStorage.getItem('corex_active_tab');
+      if (saved === 'admin' || saved === 'wallet' || saved === 'card' || saved === 'settings' || saved === 'store') {
+        return saved as 'store' | 'wallet' | 'card' | 'settings' | 'admin';
+      }
+    } catch (e) {}
+    return 'store';
   });
 
-  // Current User Account state
+  // Sync active tab to localStorage
+  useEffect(() => {
+    localStorage.setItem('corex_active_tab', activeTab);
+  }, [activeTab]);
+
+  // Current User Account state - Persists reliably across page reloads / refreshes
   const [userData, setUserData] = useState<UserData>(() => {
-    const saved = localStorage.getItem('corex_user');
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem('corex_user');
+      if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.email) {
+        if (parsed && parsed.email) {
+          if (parsed.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+            if (parsed.pass !== ADMIN_PASSWORD) {
+              return DEFAULT_GUEST_USER;
+            }
+          }
           const rawCard = parsed.cardNumber || parsed.id || '';
           const card10 = rawCard && rawCard.toString().length === 10 ? rawCard.toString() : '1029384756';
           return {
@@ -400,24 +509,26 @@ export default function App() {
             cardNumber: card10,
           };
         }
-      } catch (e) {}
-    }
-    // Default account is the Admin (10-digit card number)
-    return {
-      name: 'جعفر محمد (مدير المتجر)',
-      email: ADMIN_EMAIL,
-      pass: '1234',
-      balance: 100000, // 100,000 د.ع
-      cardNumber: '1029384756', // رقم بطاقتك (10 أرقام)
-      joinedDate: '2026',
-      isAdFreeSubscriber: true,
-      subscriptionPlan: 'yearly',
-      subscriptionExpiry: '2027/12/31',
-      dailyPurchaseCount: 0,
-      lastPurchaseDate: new Date().toISOString().split('T')[0],
-      lastDailyRewardAt: new Date().toISOString(),
-      subscriptionTier: 'plus',
-    };
+      }
+    } catch (e) {}
+    return DEFAULT_GUEST_USER;
+  });
+
+  // Authentication State: persists reliably upon page reload / refresh
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    try {
+      const savedUser = localStorage.getItem('corex_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && parsed.email) {
+          if (parsed.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+            return parsed.pass === ADMIN_PASSWORD;
+          }
+          return true;
+        }
+      }
+    } catch (e) {}
+    return false;
   });
 
   // VIP Ad-Free Subscription Modal State ("الشهر ٢٠٠٠ دينار عراقي السنه ١٥٠٠٠ دع دينار عراقي يلغي الاعلانات")
@@ -445,8 +556,16 @@ export default function App() {
   const [adminBroadcastMsg, setAdminBroadcastMsg] = useState('');
   const [adminBroadcastTarget, setAdminBroadcastTarget] = useState('all');
 
-  // Check if current user is the Admin (ONLY jafarmhmd04@gmail.com)
-  const isAdmin = isLoggedIn && userData.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  // Check if current user is the Admin/Developer (STRICTLY ONLY jafarmhmd04@gmail.com WITH Mahdi1212)
+  const isAdmin = isLoggedIn && userData.email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase() && userData.pass === ADMIN_PASSWORD;
+
+  // Guarantee non-admins can never access or view admin tab
+  useEffect(() => {
+    if (activeTab === 'admin' && !isAdmin) {
+      setActiveTab('store');
+      localStorage.setItem('corex_active_tab', 'store');
+    }
+  }, [activeTab, isAdmin]);
 
   // Products state from localStorage
   const [products, setProducts] = useState<Product[]>(() => {
@@ -477,18 +596,35 @@ export default function App() {
     return [];
   });
 
-  // Stored Users Registry for Admin ("حسابات الأشخاص تخزين والعمولات والمعلومات شكد حولوا شكد سحبوا ورقم بطاقتهم")
+  // Stored Users Registry for Multi-Account Switcher (Strictly MAX 2 ACCOUNTS: "وتبديل الحسابات كحد اقصى ٢ حسابات فقط")
   const [storedUsers, setStoredUsers] = useState<StoredUserAccount[]>(() => {
     const saved = localStorage.getItem('corex_stored_users');
+    let list: StoredUserAccount[] = DEFAULT_STORED_USERS;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          list = parsed;
         }
       } catch (e) {}
     }
-    return DEFAULT_STORED_USERS;
+    // Guarantee that Developer account is ALWAYS present in storedUsers with password Mahdi1212
+    const devIdx = list.findIndex((u) => u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+    if (devIdx === -1) {
+      list = [DEFAULT_STORED_USERS[0], ...list];
+    } else {
+      list[devIdx] = {
+        ...list[devIdx],
+        pass: ADMIN_PASSWORD,
+        cardNumber: list[devIdx].cardNumber || '1029384756',
+        name: list[devIdx].name || 'جعفر محمد (المطور والمدير العام)',
+      };
+    }
+    // Strictly cap at MAX 2 ACCOUNTS ONLY ("كحد اقصى ٢ حسابات فقط")
+    if (list.length > 2) {
+      list = list.slice(0, 2);
+    }
+    return list;
   });
 
   // Admin sub-tab selection: 'accounts' | 'broadcast' | 'products' | 'tickets' | 'ads'
@@ -524,15 +660,16 @@ export default function App() {
     };
   });
 
-  // Google AdSense live configuration state ("اعلانات حقيقه مربوطه عن طريق ادسنس")
+  // Google AdSense live configuration state - disabled per owner instruction ("خلي الموقع بدون اعلانات سوف انا اضيف كوكل ادسنس")
   const [adsenseSettings, setAdSenseSettings] = useState<AdSenseSettings>(() => {
-    const saved = localStorage.getItem('corex_adsense_settings');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return DEFAULT_ADSENSE_SETTINGS;
+    try {
+      const saved = localStorage.getItem('corex_adsense_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...parsed, isAdsEnabled: false };
+      }
+    } catch (e) {}
+    return { ...DEFAULT_ADSENSE_SETTINGS, isAdsEnabled: false };
   });
 
   // Sync AdSense settings to localStorage
@@ -540,27 +677,31 @@ export default function App() {
     localStorage.setItem('corex_adsense_settings', JSON.stringify(adsenseSettings));
   }, [adsenseSettings]);
 
-  // Dynamically update official Google AdSense script in head if publisherId changes
+  // Dynamically manage Google AdSense script (removed when ads are disabled)
   useEffect(() => {
-    if (typeof document !== 'undefined' && adsenseSettings?.publisherId) {
-      const pubId = adsenseSettings.publisherId.startsWith('ca-')
-        ? adsenseSettings.publisherId
-        : `ca-${adsenseSettings.publisherId}`;
+    if (typeof document !== 'undefined') {
       const scriptId = 'google-adsense-script';
-      let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-      const expectedSrc = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${pubId}`;
-      if (!script) {
-        script = document.createElement('script');
-        script.id = scriptId;
-        script.async = true;
-        script.crossOrigin = 'anonymous';
-        script.src = expectedSrc;
-        document.head.appendChild(script);
-      } else if (script.src !== expectedSrc) {
-        script.src = expectedSrc;
+      const existingScript = document.getElementById(scriptId);
+      if (!adsenseSettings?.isAdsEnabled) {
+        if (existingScript) existingScript.remove();
+      } else if (adsenseSettings?.isAdsEnabled && adsenseSettings?.publisherId) {
+        const pubId = adsenseSettings.publisherId.startsWith('ca-')
+          ? adsenseSettings.publisherId
+          : `ca-${adsenseSettings.publisherId}`;
+        const expectedSrc = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${pubId}`;
+        if (!existingScript) {
+          const script = document.createElement('script');
+          script.id = scriptId;
+          script.async = true;
+          script.crossOrigin = 'anonymous';
+          script.src = expectedSrc;
+          document.head.appendChild(script);
+        } else if (existingScript.getAttribute('src') !== expectedSrc) {
+          existingScript.setAttribute('src', expectedSrc);
+        }
       }
     }
-  }, [adsenseSettings?.publisherId]);
+  }, [adsenseSettings?.isAdsEnabled, adsenseSettings?.publisherId]);
 
   // Random gentle ad popup that appears spontaneously to mobile visitors
   const [randomPopupAd, setRandomPopupAd] = useState<EthicalAd | null>(null);
@@ -592,26 +733,48 @@ export default function App() {
   // Confirm delete modal
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  // Purchases and Transactions
-  const [purchases, setPurchases] = useState<PurchasedItem[]>(() => {
-    const saved = localStorage.getItem('my_purchased_codes');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
+  // Theme state: 'midnight' (current dark mode) vs 'charcoal' (high contrast charcoal dark mode)
+  const [appTheme, setAppTheme] = useState<AppTheme>(() => {
+    try {
+      const saved = localStorage.getItem('corex_app_theme');
+      if (saved === 'charcoal' || saved === 'midnight') return saved;
+    } catch (e) {}
+    return 'midnight';
+  });
+
+  // Sync theme to localStorage and document.body
+  useEffect(() => {
+    localStorage.setItem('corex_app_theme', appTheme);
+    if (typeof document !== 'undefined') {
+      if (appTheme === 'charcoal') {
+        document.body.classList.add('theme-charcoal');
+        document.body.classList.remove('theme-midnight');
+      } else {
+        document.body.classList.add('theme-midnight');
+        document.body.classList.remove('theme-charcoal');
+      }
     }
-    return [];
+  }, [appTheme]);
+
+  // Purchases and Transactions - strictly isolated per account ("و كل حساب له معاملات خاصه و وسجل خاص وكلشي كل حساب يختلف عن حساب")
+  const [purchases, setPurchases] = useState<PurchasedItem[]>(() => {
+    return loadUserPurchases(userData.email, DEFAULT_STORED_USERS);
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('corex_tx');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
+    return loadUserTransactions(userData.email, DEFAULT_STORED_USERS);
   });
+
+  // Synchronize and load user-specific records whenever authenticated user changes
+  useEffect(() => {
+    if (isLoggedIn && userData.email) {
+      setTransactions(loadUserTransactions(userData.email, storedUsers));
+      setPurchases(loadUserPurchases(userData.email, storedUsers));
+    } else {
+      setTransactions([]);
+      setPurchases([]);
+    }
+  }, [isLoggedIn, userData.email]);
 
   // Modals for wallet
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
@@ -655,6 +818,17 @@ export default function App() {
     }
   }, [chatMessages, isChatOpen]);
 
+  // Low balance (< 1,000 IQD) Toast notification reminder when opening the wallet
+  useEffect(() => {
+    if (activeTab === 'wallet' && isLoggedIn && userData.balance < 1000) {
+      showToast(
+        'تنبيه انخفاض الرصيد ⚠️',
+        `رصيد محفظتك الحالي (${userData.balance.toLocaleString()} د.ع) أقل من 1,000 د.ع. يرجى المبادرة بتعبئة الرصيد للاستمرار في التسوق والتحويل!`,
+        'error'
+      );
+    }
+  }, [activeTab, isLoggedIn, userData.balance]);
+
   // Sync state to localStorage
   useEffect(() => {
     localStorage.setItem('my_products', JSON.stringify(products));
@@ -665,20 +839,68 @@ export default function App() {
   }, [tickets]);
 
   useEffect(() => {
-    localStorage.setItem('corex_is_logged_in', isLoggedIn ? 'true' : 'false');
-  }, [isLoggedIn]);
+    if (isLoggedIn && userData.email) {
+      localStorage.setItem('corex_is_logged_in', 'true');
+      localStorage.setItem('corex_user', JSON.stringify(userData));
 
-  useEffect(() => {
-    localStorage.setItem('corex_user', JSON.stringify(userData));
-  }, [userData]);
+      // Keep storedUsers registry updated so customer accounts and developer account stay permanently stored
+      setStoredUsers((prev) => {
+        const idx = prev.findIndex((u) => u.email.toLowerCase() === userData.email.toLowerCase());
+        if (idx !== -1) {
+          const target = prev[idx];
+          if (
+            target.balance !== userData.balance ||
+            target.name !== userData.name ||
+            target.isAdFreeSubscriber !== userData.isAdFreeSubscriber ||
+            target.subscriptionPlan !== userData.subscriptionPlan
+          ) {
+            const nextList = [...prev];
+            nextList[idx] = {
+              ...target,
+              name: userData.name,
+              balance: userData.balance,
+              cardNumber: userData.cardNumber.toString(),
+              isAdFreeSubscriber: userData.isAdFreeSubscriber,
+              subscriptionPlan: userData.subscriptionPlan,
+              subscriptionExpiry: userData.subscriptionExpiry,
+            };
+            return nextList;
+          }
+        }
+        return prev;
+      });
+    }
+  }, [isLoggedIn, userData]);
 
+  // Save user-isolated purchases
   useEffect(() => {
-    localStorage.setItem('my_purchased_codes', JSON.stringify(purchases));
-  }, [purchases]);
+    if (isLoggedIn && userData.email) {
+      const pKey = getUserPurchasesKey(userData.email);
+      localStorage.setItem(pKey, JSON.stringify(purchases));
+      setStoredUsers((prev) =>
+        prev.map((u) =>
+          u.email.toLowerCase() === userData.email.toLowerCase()
+            ? { ...u, purchasedCodes: purchases }
+            : u
+        )
+      );
+    }
+  }, [purchases, isLoggedIn, userData.email]);
 
+  // Save user-isolated transactions
   useEffect(() => {
-    localStorage.setItem('corex_tx', JSON.stringify(transactions));
-  }, [transactions]);
+    if (isLoggedIn && userData.email) {
+      const txKey = getUserTransactionsKey(userData.email);
+      localStorage.setItem(txKey, JSON.stringify(transactions));
+      setStoredUsers((prev) =>
+        prev.map((u) =>
+          u.email.toLowerCase() === userData.email.toLowerCase()
+            ? { ...u, transactions }
+            : u
+        )
+      );
+    }
+  }, [transactions, isLoggedIn, userData.email]);
 
   useEffect(() => {
     localStorage.setItem('corex_stored_users', JSON.stringify(storedUsers));
@@ -801,44 +1023,6 @@ export default function App() {
     );
   };
 
-  // Periodic random gentle ad popup for mobile visitors (Blocked 100% for VIP Ad-Free Subscribers)
-  useEffect(() => {
-    // If user has active VIP Ad-Free subscription, no ads are ever displayed
-    if (userData.isAdFreeSubscriber) {
-      if (randomPopupAd) setRandomPopupAd(null);
-      return;
-    }
-
-    // Initial popup after 9 seconds of browsing
-    const initialTimer = setTimeout(() => {
-      if (!randomPopupAd && ethicalAds.length > 0) {
-        const active = ethicalAds.filter((a) => a.isActive);
-        if (active.length > 0) {
-          const picked = active[Math.floor(Math.random() * active.length)];
-          setRandomPopupAd(picked);
-          recordAdImpression(picked);
-        }
-      }
-    }, 9000);
-
-    // Then polite 28 seconds interval
-    const interval = setInterval(() => {
-      if (!randomPopupAd && ethicalAds.length > 0) {
-        const active = ethicalAds.filter((a) => a.isActive);
-        if (active.length > 0) {
-          const picked = active[Math.floor(Math.random() * active.length)];
-          setRandomPopupAd(picked);
-          recordAdImpression(picked);
-        }
-      }
-    }, 28000);
-
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
-  }, [ethicalAds, randomPopupAd, userData.isAdFreeSubscriber]);
-
   // Automatic 50 IQD Daily Reward Disbursement effect for active Plus Subscribers (Every 24 Hours)
   useEffect(() => {
     if (!isLoggedIn || !userData.isAdFreeSubscriber) return;
@@ -935,89 +1119,86 @@ export default function App() {
     );
   };
 
-  // Subscription handler: Month 2,000 IQD / Year 15,000 IQD (Plus Tier)
-  const handleSubscribeAdFree = (plan: 'monthly' | 'yearly') => {
-    const cost = plan === 'monthly' ? 2000 : 15000;
-    const durationDays = plan === 'monthly' ? 30 : 365;
+  // Subscription handler: Payment gateways currently unavailable per request ("واجعل غير متوفر بوابه دفع الان لا يمكنه الاشتراك")
+  const handleSubscribeAdFree = (
+    plan: 'monthly' | 'yearly',
+    gatewayName: string = 'بوابة دفع إلكترونية',
+    transactionRef?: string
+  ) => {
+    showToast(
+      'بوابات الدفع غير متوفرة حالياً 🔒',
+      'عذراً، خدمة بوابات الدفع الإلكتروني غير متوفرة حالياً ولا يمكن الاشتراك الذاتي الآن. يمكن لإدارة المتجر تفعيل الاشتراك لحسابك مباشرة ومجاناً عبر رقم بطاقتك.',
+      'info'
+    );
+    setIsSubscriptionModalOpen(false);
+  };
 
-    if (userData.balance < cost) {
-      showToast(
-        'الرصيد غير كافٍ',
-        `تحتاج إلى ${cost.toLocaleString()} د.ع للاشتراك في باقة بلس (${plan === 'yearly' ? 'السنوية' : 'الشهرية'}). يرجى شحن محفظتك أولاً.`,
-        'error'
-      );
+  // Developer / Admin handler: Can subscribe ANY user via card number or from accounts list ("وخلي الحساب المطور يكدر يشترك اي شخص اشتراك عن طريق رقم بطاقته او عن طريق من قائمه حسابات")
+  const handleAdminSetSubscription = (
+    userIdOrCardNumber: string,
+    plan: 'monthly' | 'yearly' | 'lifetime' | 'cancel'
+  ) => {
+    const target = storedUsers.find(
+      (u) =>
+        u.id === userIdOrCardNumber ||
+        u.cardNumber === userIdOrCardNumber ||
+        u.email.toLowerCase() === userIdOrCardNumber.toLowerCase()
+    );
+
+    if (!target) {
+      showToast('خطأ', 'لم يتم العثور على صاحب البطاقة أو الحساب.', 'error');
       return;
     }
 
+    const durationDays = plan === 'monthly' ? 30 : plan === 'yearly' ? 365 : 3650;
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + durationDays);
-    const expiryStr = expiryDate.toISOString().split('T')[0];
+    const expiryStr = plan === 'lifetime' ? '2099-12-31' : expiryDate.toISOString().split('T')[0];
 
-    // Welcome bonus: immediately credit the first 50 IQD daily reward
-    const welcomeBonus = 50;
-    const finalBalance = userData.balance - cost + welcomeBonus;
-    const nowStr = new Date().toISOString();
+    const isSub = plan !== 'cancel';
+    const subPlan = isSub ? (plan === 'lifetime' ? 'yearly' : plan) : undefined;
+    const subTier = isSub ? 'plus' : 'free';
 
-    setUserData((prev) => ({
-      ...prev,
-      balance: finalBalance,
-      isAdFreeSubscriber: true,
-      subscriptionPlan: plan,
-      subscriptionExpiry: expiryStr,
-      subscriptionTier: 'plus',
-      lastDailyRewardAt: nowStr,
-    }));
-
-    const subTx: Transaction = {
-      id: 'tx-sub-' + Date.now(),
-      type: 'buy',
-      title: `اشتراك بلس (Plus) - ${plan === 'yearly' ? 'سنوي (15,000 د.ع)' : 'شهري (2,000 د.ع)'}`,
-      amount: -cost,
-      date: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
-      status: 'completed',
-    };
-
-    const rewardTx: Transaction = {
-      id: 'tx-rwd-' + Date.now(),
-      type: 'receive',
-      title: 'مكافأة Plus اليومية الترحيبية (+50 د.ع)',
-      amount: 50,
-      date: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
-      status: 'completed',
-    };
-
-    setTransactions((prev) => [rewardTx, subTx, ...prev]);
-
-    // Send in-app notification
-    addNotification(
-      'تم تفعيل باقة Plus بنجاح! 👑',
-      `تهانينا! تم تفعيل اشتراك بلس (${plan === 'yearly' ? 'سنة كاملة 365 يوماً' : 'شهر واحد 30 يوماً'}). تم إلغاء جميع الإعلانات بالكامل، تفعيل المعاملات غير المحدودة، وصرف أول مكافأة يومية 50 د.ع لغاية ${expiryStr}.`,
-      'addition',
-      userData.email
-    );
-
-    // Update stored users list
     setStoredUsers((prev) =>
       prev.map((u) =>
-        u.email === userData.email
+        u.id === target.id || u.cardNumber === target.cardNumber
           ? {
               ...u,
-              balance: finalBalance,
-              totalWithdrawnOrSpent: u.totalWithdrawnOrSpent + cost,
-              isAdFreeSubscriber: true,
-              subscriptionPlan: plan,
-              subscriptionExpiry: expiryStr,
-              subscriptionTier: 'plus',
-              lastDailyRewardAt: nowStr,
+              isAdFreeSubscriber: isSub,
+              subscriptionPlan: subPlan,
+              subscriptionExpiry: isSub ? expiryStr : undefined,
+              subscriptionTier: subTier,
             }
           : u
       )
     );
 
-    setIsSubscriptionModalOpen(false);
+    if (userData.email.toLowerCase() === target.email.toLowerCase() || userData.cardNumber === target.cardNumber) {
+      const updatedCurr: UserData = {
+        ...userData,
+        isAdFreeSubscriber: isSub,
+        subscriptionPlan: subPlan,
+        subscriptionExpiry: isSub ? expiryStr : undefined,
+        subscriptionTier: subTier,
+      };
+      setUserData(updatedCurr);
+      localStorage.setItem('corex_user', JSON.stringify(updatedCurr));
+    }
+
+    if (isSub) {
+      addNotification(
+        'هدية اشتراك بلس من المطور 👑',
+        `قام مطور المتجر بتفعيل اشتراك بلس لحسابك مجاناً عبر رقم بطاقتك (${target.cardNumber}) لغاية ${expiryStr}! تصفح خالٍ تماماً من الإعلانات ومعاملات غير محدودة.`,
+        'addition',
+        target.email
+      );
+    }
+
     showToast(
-      'تم تفعيل باقة بلس (Plus Subscription) 👑',
-      `تم إلغاء الإعلانات 100%، تفعيل معاملات غير محدودة، وصرف 50 د.ع يومية بمحفظتك!`,
+      isSub ? 'تم تفعيل الاشتراك 👑' : 'تم إلغاء الاشتراك',
+      isSub
+        ? `تم تفعيل اشتراك بلس للمستخدم (${target.name}) صاحب البطاقة (${target.cardNumber}) بنجاح وبدون أي خصم من رصيده!`
+        : `تم إلغاء اشتراك بلس للمستخدم (${target.name}).`,
       'success'
     );
   };
@@ -1141,6 +1322,27 @@ export default function App() {
     }, 4500);
   };
 
+  // Low balance detection & Toast alert for Wallet (< 1,000 IQD / د.ع)
+  // "إظهار تنبيه مرئي (Toast) أو أيقونة تحذير عند انخفاض الرصيد عن ١٠٠٠ د.ع، لتذكير المستخدم بضرورة تعبئة الرصيد"
+  const prevBalanceRef = useRef<number>(userData.balance);
+  const lastLowBalanceWarningRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (isLoggedIn && userData.balance < 1000 && activeTab === 'wallet') {
+      const now = Date.now();
+      // Alert when entering wallet or when balance drops below 1,000 IQD (rate-limited so it doesn't spam)
+      if (now - lastLowBalanceWarningRef.current > 20000 || prevBalanceRef.current >= 1000) {
+        lastLowBalanceWarningRef.current = now;
+        showToast(
+          '⚠️ تنبيه انخفاض الرصيد',
+          `رصيدك الحالي (${userData.balance.toLocaleString()} د.ع) أقل من 1,000 د.ع. يُرجى تعبئة الرصيد لتجنب توقف المعاملات والتحويلات.`,
+          'error'
+        );
+      }
+    }
+    prevBalanceRef.current = userData.balance;
+  }, [activeTab, userData.balance, isLoggedIn]);
+
   // Helper to add in-app notifications
   const addNotification = (
     title: string,
@@ -1161,26 +1363,34 @@ export default function App() {
   };
 
   // Helper to sync user to admin registry
-  const registerUserInStorage = (name: string, email: string, cardNumber: string, balance: number = 0) => {
-    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return;
+  const registerUserInStorage = (
+    name: string,
+    email: string,
+    cardNumber: string,
+    balance: number = 0,
+    pass?: string
+  ) => {
     setStoredUsers((prev) => {
       const idx = prev.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
       if (idx >= 0) {
         const updated = [...prev];
         updated[idx] = {
           ...updated[idx],
-          name,
+          name: email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'جعفر محمد (المطور والمدير العام)' : name,
           cardNumber,
+          pass: pass || updated[idx].pass,
           lastActive: 'الآن (متصل)',
         };
+        localStorage.setItem('corex_stored_users', JSON.stringify(updated));
         return updated;
       } else {
         const newAccount: StoredUserAccount = {
-          id: 'usr-' + Date.now(),
+          id: email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'usr-dev-01' : 'usr-' + Date.now(),
           name,
           email,
+          pass,
           cardNumber,
-          balance: 0, // يبدأ من 0 د.ع ليس لديه أموال
+          balance,
           totalTransferred: 0,
           totalWithdrawnOrSpent: 0,
           totalCommission: 0,
@@ -1189,7 +1399,9 @@ export default function App() {
           joinedDate: new Date().toLocaleDateString('ar-IQ'),
           lastActive: 'الآن (تسجيل جديد)',
         };
-        return [newAccount, ...prev];
+        const updated = [newAccount, ...prev];
+        localStorage.setItem('corex_stored_users', JSON.stringify(updated));
+        return updated;
       }
     });
   };
@@ -1211,25 +1423,53 @@ export default function App() {
     }
 
     if (authMode === 'login') {
-      // Check if Admin Account
+      // Check if Developer / Admin Account (strictly verified via ADMIN_EMAIL and ADMIN_PASSWORD)
       if (email === ADMIN_EMAIL.toLowerCase()) {
+        if (pass !== ADMIN_PASSWORD) {
+          showToast(
+            'خطأ في تسجيل الدخول',
+            'الرمز السري غير صحيح. يرجى التأكد من الرمز والمحاولة مرة أخرى.',
+            'error'
+          );
+          return;
+        }
+
         const adminUser: UserData = {
-          name: 'جعفر محمد (مدير المتجر)',
+          name: 'جعفر محمد (المطور والمدير العام)',
           email: ADMIN_EMAIL,
-          pass,
-          balance: userData.email === ADMIN_EMAIL ? userData.balance : 100000,
+          pass: ADMIN_PASSWORD,
+          balance: userData.email === ADMIN_EMAIL && userData.balance > 0 ? userData.balance : 100000,
           cardNumber: '1029384756', // 10 أرقام
           joinedDate: '2026',
+          isAdFreeSubscriber: true,
+          subscriptionPlan: 'yearly',
+          subscriptionExpiry: '2027/12/31',
+          dailyPurchaseCount: 0,
+          lastPurchaseDate: new Date().toISOString().split('T')[0],
+          lastDailyRewardAt: new Date().toISOString(),
+          subscriptionTier: 'plus',
         };
         setUserData(adminUser);
         setIsLoggedIn(true);
+        localStorage.setItem('corex_is_logged_in', 'true');
+        localStorage.setItem('corex_user', JSON.stringify(adminUser));
+        registerUserInStorage('جعفر محمد (المطور والمدير العام)', ADMIN_EMAIL, '1029384756', adminUser.balance, ADMIN_PASSWORD);
         setIsLoginModalOpen(false);
         setLoginEmailInput('');
         setLoginPassInput('');
-        showToast('تم تسجيل الدخول كمدير', `مرحباً بك يا مدير المتجر! تم تفعيل الحساب الإداري (${ADMIN_EMAIL}) وصلاحيات التحكم الكاملة.`, 'success');
+        showToast(
+          'تم تسجيل الدخول',
+          'مرحباً بك يا مدير المتجر! تم التحقق من هويتك وتفعيل لوحة المطور بنجاح.',
+          'success'
+        );
       } else {
         // Regular customer account - strictly 0 د.ع ("ليس لدي أموال")
         const existingStored = storedUsers.find((u) => u.email.toLowerCase() === email);
+        if (existingStored && existingStored.pass && existingStored.pass !== pass) {
+          showToast('خطأ في كلمة المرور', 'كلمة المرور / الرمز غير صحيح لهذا الحساب.', 'error');
+          return;
+        }
+
         const cardNum = existingStored ? existingStored.cardNumber : generate10DigitCardNumber();
         const userName = existingStored ? existingStored.name : email.split('@')[0];
         const userBal = existingStored ? existingStored.balance : 0; // Starts with 0 IQD
@@ -1240,51 +1480,66 @@ export default function App() {
           pass,
           balance: userBal,
           cardNumber: cardNum,
-          joinedDate: '2026',
+          joinedDate: existingStored?.joinedDate || '2026',
+          isAdFreeSubscriber: existingStored ? existingStored.isAdFreeSubscriber : false,
+          subscriptionPlan: existingStored ? existingStored.subscriptionPlan : undefined,
+          subscriptionExpiry: existingStored ? existingStored.subscriptionExpiry : undefined,
+          subscriptionTier: existingStored && existingStored.isAdFreeSubscriber ? 'plus' : 'free',
         };
         setUserData(customerUser);
         setIsLoggedIn(true);
+        localStorage.setItem('corex_is_logged_in', 'true');
+        localStorage.setItem('corex_user', JSON.stringify(customerUser));
         setIsLoginModalOpen(false);
         setLoginEmailInput('');
         setLoginPassInput('');
-        registerUserInStorage(userName, email, cardNum, userBal);
-        showToast('تم تسجيل الدخول', `أهلاً بك (${userName})! رصيدك الحالي: ${userBal} د.ع ورقم بطاقتك: ${cardNum}`, 'info');
+        registerUserInStorage(userName, email, cardNum, userBal, pass);
+        showToast('تم تسجيل الدخول', `أهلاً بك (${userName})! تم حفظ وتثبيت حسابك بنجاح.`, 'info');
       }
     } else {
       // Register Mode
+      if (email === ADMIN_EMAIL.toLowerCase()) {
+        showToast(
+          'تنبيه',
+          'هذا البريد الإلكتروني مسجل مسبقاً. يرجى التبديل لتسجيل الدخول.',
+          'error'
+        );
+        setAuthMode('login');
+        return;
+      }
+
       const name = regNameInput.trim() || email.split('@')[0];
-      const isRegisteredAdmin = email === ADMIN_EMAIL.toLowerCase();
       const cardNum = generate10DigitCardNumber(); // 10 أرقام حصراً
-      const initBal = isRegisteredAdmin ? 100000 : 0; // 0 د.ع for regular users!
+      const initBal = 0; // 0 د.ع for regular users!
 
       const newUser: UserData = {
-        name: isRegisteredAdmin ? `${name} (مدير المتجر)` : name,
+        name,
         email,
         pass,
         balance: initBal,
         cardNumber: cardNum,
         joinedDate: '2026',
+        isAdFreeSubscriber: false,
+        subscriptionTier: 'free',
       };
       setUserData(newUser);
       setIsLoggedIn(true);
+      localStorage.setItem('corex_is_logged_in', 'true');
+      localStorage.setItem('corex_user', JSON.stringify(newUser));
       setIsLoginModalOpen(false);
       setLoginEmailInput('');
       setLoginPassInput('');
       setRegNameInput('');
-      if (!isRegisteredAdmin) {
-        registerUserInStorage(name, email, cardNum, 0);
-        addNotification(
-          'تم إصدار بطاقتك الرقمية الجديدة 💳',
-          `تم إنشاء حسابك وتفعيل رقم بطاقتك المكون من 10 أرقام (${cardNum}) برصيد 0 د.ع.`,
-          'addition',
-          email
-        );
-      }
+      registerUserInStorage(name, email, cardNum, 0, pass);
+      addNotification(
+        'تم إصدار بطاقتك الرقمية الجديدة 💳',
+        `تم إنشاء حسابك وتفعيل رقم بطاقتك المكون من 10 أرقام (${cardNum}) برصيد 0 د.ع.`,
+        'addition',
+        email
+      );
       showToast(
         'تم إنشاء الحساب',
-        isRegisteredAdmin
-          ? `تم إنشاء وتفعيل حسابك الإداري (${ADMIN_EMAIL}) بنجاح!`
-          : `تم إنشاء حسابك بنجاح! رقم بطاقتك (10 أرقام): ${newUser.cardNumber}`,
+        `تم إنشاء حسابك بنجاح! رقم بطاقتك (10 أرقام): ${newUser.cardNumber}`,
         'success'
       );
     }
@@ -1293,10 +1548,202 @@ export default function App() {
   // Sign out function
   const handleLogout = () => {
     setIsLoggedIn(false);
-    showToast('تم تسجيل الخروج', 'تم تسجيل خروجك من الحساب بنجاح. يمكنك تسجيل الدخول في أي وقت.', 'info');
+    setUserData(DEFAULT_GUEST_USER);
+    localStorage.setItem('corex_is_logged_in', 'false');
+    localStorage.removeItem('corex_user');
+    setActiveTab('store');
+    showToast('تم تسجيل الخروج', 'تم تسجيل خروجك من الحساب بنجاح. يمنع الشراء وتعبئة الرصيد إلا بعد تسجيل الدخول.', 'info');
   };
 
-  // Fast pre-fill helper for convenience
+  // Multi-Account Switcher states in Settings (Strictly MAX 2 ACCOUNTS: "وتبديل الحسابات كحد اقصى ٢ حسابات فقط وحساب تجريبي لا يوجد ماكو انشاء حساب سريع تنشى عن طريق بريد واسم ورمز")
+  const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
+  const [newAccName, setNewAccName] = useState('');
+  const [newAccEmail, setNewAccEmail] = useState('');
+  const [newAccPass, setNewAccPass] = useState('');
+  const [showPassChangeVisibility, setShowPassChangeVisibility] = useState(false);
+
+  // Instant one-click Account Switcher ("تبديل ما بين الحسابات من الإعدادات بضغطة زر وكل حساب يختلف من كل شيء")
+  const handleSwitchAccount = (targetUser: StoredUserAccount) => {
+    if (isLoggedIn && userData.email.toLowerCase() === targetUser.email.toLowerCase()) {
+      showToast('الحساب الحالي', 'أنت تستخدم هذا الحساب بالفعل حالياً.', 'info');
+      return;
+    }
+
+    // 1. First, save current active user's state into storedUsers & localStorage
+    if (isLoggedIn && userData.email) {
+      setStoredUsers((prev) => {
+        const idx = prev.findIndex((u) => u.email.toLowerCase() === userData.email.toLowerCase());
+        if (idx !== -1) {
+          const next = [...prev];
+          next[idx] = {
+            ...next[idx],
+            name: userData.name,
+            pass: userData.pass || next[idx].pass,
+            balance: userData.balance,
+            cardNumber: userData.cardNumber.toString(),
+            isAdFreeSubscriber: userData.isAdFreeSubscriber,
+            subscriptionPlan: userData.subscriptionPlan,
+            subscriptionExpiry: userData.subscriptionExpiry,
+            transactions: transactions,
+            purchasedCodes: purchases,
+          };
+          localStorage.setItem('corex_stored_users', JSON.stringify(next));
+          return next;
+        }
+        return prev;
+      });
+    }
+
+    // 2. Locate fresh target account data
+    const freshTarget = storedUsers.find((u) => u.email.toLowerCase() === targetUser.email.toLowerCase()) || targetUser;
+
+    const newUserData: UserData = {
+      name: freshTarget.name,
+      email: freshTarget.email,
+      pass: freshTarget.pass || '',
+      balance: freshTarget.balance,
+      cardNumber: freshTarget.cardNumber,
+      joinedDate: freshTarget.joinedDate || '2026',
+      isAdFreeSubscriber: freshTarget.isAdFreeSubscriber,
+      subscriptionPlan: freshTarget.subscriptionPlan,
+      subscriptionExpiry: freshTarget.subscriptionExpiry,
+      subscriptionTier: freshTarget.subscriptionTier || (freshTarget.isAdFreeSubscriber ? 'plus' : 'free'),
+      dailyPurchaseCount: freshTarget.dailyPurchaseCount || 0,
+      lastPurchaseDate: freshTarget.lastPurchaseDate,
+      lastDailyRewardAt: freshTarget.lastDailyRewardAt,
+      cancellationRequested: freshTarget.cancellationRequested,
+      cancellationDate: freshTarget.cancellationDate,
+    };
+
+    setUserData(newUserData);
+    setIsLoggedIn(true);
+    localStorage.setItem('corex_is_logged_in', 'true');
+    localStorage.setItem('corex_user', JSON.stringify(newUserData));
+
+    // 3. Immediately load isolated transactions & purchases for the target account
+    const userTx = loadUserTransactions(freshTarget.email, storedUsers);
+    const userPurch = loadUserPurchases(freshTarget.email, storedUsers);
+    setTransactions(userTx);
+    setPurchases(userPurch);
+
+    showToast(
+      'تم تبديل الحساب بنجاح 🔄',
+      `تم الانتقال إلى (${freshTarget.name}) • بطاقتك: ${freshTarget.cardNumber} • الرصيد: ${freshTarget.balance.toLocaleString()} د.ع`,
+      'success'
+    );
+  };
+
+  // Add / Create Second Account from Settings (Strictly via name, email, and password - strictly MAX 2 ACCOUNTS)
+  const handleCreateSecondAccount = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    if (storedUsers.length >= 2) {
+      showToast('الحد الأقصى للحسابات', 'الحد الأقصى المسموح به هو حسابين (2) فقط لا غير. يمكنك حذف الحساب الثانوي لإضافة حساب بديل.', 'error');
+      return;
+    }
+
+    if (!newAccName.trim()) {
+      showToast('بيانات مطلوبة', 'يرجى إدخال اسم صاحب الحساب.', 'error');
+      return;
+    }
+
+    if (!newAccEmail.trim()) {
+      showToast('بيانات مطلوبة', 'يرجى إدخال البريد الإلكتروني للحساب الجديد.', 'error');
+      return;
+    }
+
+    if (!newAccPass.trim()) {
+      showToast('بيانات مطلوبة', 'يرجى إدخال الرمز السري أو كلمة المرور للحساب الجديد.', 'error');
+      return;
+    }
+
+    const cleanEmail = newAccEmail.trim().toLowerCase();
+    if (storedUsers.some((u) => u.email.toLowerCase() === cleanEmail)) {
+      showToast('حساب موجود', 'هذا البريد الإلكتروني مسجل مسبقاً في قائمة الحسابات المحفوظة.', 'error');
+      return;
+    }
+
+    const name = newAccName.trim();
+    const cardNum = generate10DigitCardNumber();
+
+    const newAccount: StoredUserAccount = {
+      id: `usr-${Date.now()}`,
+      name,
+      email: cleanEmail,
+      pass: newAccPass.trim(),
+      cardNumber: cardNum,
+      balance: 0, // Starts at 0 IQD
+      totalTransferred: 0,
+      totalWithdrawnOrSpent: 0,
+      totalCommission: 0,
+      transfersCount: 0,
+      purchasesCount: 0,
+      joinedDate: '2026',
+      lastActive: 'الآن',
+      isAdFreeSubscriber: false,
+      subscriptionTier: 'free',
+      transactions: [],
+      purchasedCodes: [],
+    };
+
+    const nextList = [newAccount, ...storedUsers].slice(0, 2);
+    setStoredUsers(nextList);
+    localStorage.setItem('corex_stored_users', JSON.stringify(nextList));
+
+    setNewAccName('');
+    setNewAccEmail('');
+    setNewAccPass('');
+    setIsAddAccountOpen(false);
+
+    showToast(
+      'تم إنشاء الحساب الثاني بنجاح 🎉',
+      `تم تسجيل حساب (${name}) برقم بطاقة (${cardNum}) بالاسم والبريد والرمز بنجاح. يمكنك التبديل بين الحسابين بضغطة زر واحدة!`,
+      'success'
+    );
+  };
+
+  // Delete second account from switcher list to allow registering another one
+  const handleDeleteStoredAccount = (id: string, email: string, name: string) => {
+    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      showToast('ممنوع الحذف', 'لا يمكن حذف حساب الإدارة والمطور.', 'error');
+      return;
+    }
+    if (isLoggedIn && userData.email.toLowerCase() === email.toLowerCase()) {
+      showToast('ممنوع الحذف', 'لا يمكنك حذف الحساب النشط حالياً. يرجى التبديل للحساب الآخر أولاً.', 'error');
+      return;
+    }
+    setStoredUsers((prev) => {
+      const filtered = prev.filter((u) => u.id !== id);
+      localStorage.setItem('corex_stored_users', JSON.stringify(filtered));
+      return filtered;
+    });
+    showToast('تم الحذف', `تم حذف حساب (${name}) من قائمة الحسابات المحفوظة. يمكنك الآن إنشاء حساب ثانٍ بديل.`, 'info');
+  };
+
+  // Update and save password/PIN for active account in Settings
+  const handleChangePassword = () => {
+    if (!changePassInput.trim()) {
+      showToast('تنبيه', 'يرجى إدخال الرمز أو كلمة المرور الجديدة أولاً.', 'error');
+      return;
+    }
+    const newPass = changePassInput.trim();
+    setUserData((prev) => {
+      const updated = { ...prev, pass: newPass };
+      localStorage.setItem('corex_user', JSON.stringify(updated));
+      return updated;
+    });
+    setStoredUsers((prev) => {
+      const updated = prev.map((u) =>
+        u.email.toLowerCase() === userData.email.toLowerCase() ? { ...u, pass: newPass } : u
+      );
+      localStorage.setItem('corex_stored_users', JSON.stringify(updated));
+      return updated;
+    });
+    setChangePassInput('');
+    showToast('تم تحديث الرمز', `تم حفظ وتثبيت كلمة المرور / الرمز الجديد للحساب (${userData.name}) بنجاح.`, 'success');
+  };
+
+  // Fast pre-fill helper for customer accounts
   const handleFastLogin = (email: string, pass: string) => {
     setLoginEmailInput(email);
     setLoginPassInput(pass);
@@ -1307,7 +1754,7 @@ export default function App() {
   const handleAddProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) {
-      showToast('صلاحية مرفوضة', 'عذراً، هذا الإجراء متاح فقط للحساب الإداري (jafarmhmd04@gmail.com).', 'error');
+      showToast('صلاحية مرفوضة', 'عذراً، هذا الإجراء متاح فقط للإدارة المعتمدة.', 'error');
       return;
     }
 
@@ -1353,10 +1800,20 @@ export default function App() {
     setProductToDelete(null);
   };
 
+  // Open Recharge Balance Modal (Strictly requires login or signup)
+  const handleOpenRechargeModal = () => {
+    if (!isLoggedIn || !userData.email) {
+      showToast('تسجيل الدخول مطلوب', 'ممنوع تعبئة الرصيد إلا عن طريق تسجيل الدخول أو إنشاء حساب جديد!', 'error');
+      setIsLoginModalOpen(true);
+      return;
+    }
+    setIsRechargeModalOpen(true);
+  };
+
   // Buy Product (Strictly in IQD)
   const handleBuyProduct = (product: Product) => {
-    if (!isLoggedIn) {
-      showToast('تسجيل الدخول مطلوب', 'يرجى تسجيل الدخول إلى حسابك أولاً لإتمام الشراء واستلام الكود.', 'info');
+    if (!isLoggedIn || !userData.email) {
+      showToast('تسجيل الدخول مطلوب', 'ممنوع الشراء إلا عن طريق تسجيل الدخول أو إنشاء حساب جديد!', 'error');
       setIsLoginModalOpen(true);
       return;
     }
@@ -1450,15 +1907,15 @@ export default function App() {
         `سعر البطاقة ${costInIQD.toLocaleString()} د.ع بينما رصيدك الحالي ${userData.balance.toLocaleString()} د.ع. يرجى الانتظار لحين تفعيل بوابات الدفع قريباً.`,
         'error'
       );
-      setIsRechargeModalOpen(true);
+      handleOpenRechargeModal();
     }
   };
 
   // Send Money (Uses "رقم بطاقتك" - 10 digits) & Tracks "شكد حولوا" and "العمولات"
   const handleProcessSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoggedIn) {
-      showToast('تسجيل الدخول مطلوب', 'يرجى تسجيل الدخول أولاً لإرسال الأموال.', 'info');
+    if (!isLoggedIn || !userData.email) {
+      showToast('تسجيل الدخول مطلوب', 'ممنوع إرسال الأموال إلا عن طريق تسجيل الدخول أو إنشاء حساب جديد!', 'error');
       setIsLoginModalOpen(true);
       return;
     }
@@ -1496,7 +1953,24 @@ export default function App() {
     };
     setTransactions([newTx, ...transactions]);
 
-    // Update stored users registry ("شكد حولوا" و "العمولات")
+    // Update stored users registry and recipient's isolated transactions
+    const recUser = storedUsers.find((u) => u.cardNumber === recipient);
+    let updatedRecTx: Transaction[] | undefined;
+    if (recUser) {
+      const recTx: Transaction = {
+        id: 'tx-rcv-' + Date.now(),
+        type: 'receive',
+        title: `استلام أموال من رقم البطاقة: ${userData.cardNumber}`,
+        amount: amount,
+        date: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
+        status: 'completed',
+        recipientCardNumber: userData.cardNumber.toString(),
+      };
+      const recExisting = loadUserTransactions(recUser.email, storedUsers);
+      updatedRecTx = [recTx, ...recExisting];
+      localStorage.setItem(getUserTransactionsKey(recUser.email), JSON.stringify(updatedRecTx));
+    }
+
     setStoredUsers((prev) =>
       prev.map((u) => {
         if (u.email.toLowerCase() === userData.email.toLowerCase() || u.cardNumber === userData.cardNumber.toString()) {
@@ -1514,6 +1988,7 @@ export default function App() {
             ...u,
             balance: u.balance + amount,
             lastActive: 'الآن (استلام أموال)',
+            transactions: updatedRecTx || u.transactions,
           };
         }
         return u;
@@ -1528,7 +2003,6 @@ export default function App() {
       userData.email
     );
 
-    const recUser = storedUsers.find((u) => u.cardNumber === recipient);
     if (recUser) {
       addNotification(
         'تم استلام حوالة مالية 💰',
@@ -1580,13 +2054,33 @@ export default function App() {
       return;
     }
 
+    const rechargeTx: Transaction = {
+      id: 'tx-topup-' + Date.now(),
+      type: 'recharge',
+      title: 'شحن رصيد من الإدارة (+)',
+      amount: amt,
+      date: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
+      status: 'completed',
+    };
+
+    if (userData.email.toLowerCase() === adminTopUpUser.email.toLowerCase()) {
+      setTransactions((prev) => [rechargeTx, ...prev]);
+    } else {
+      const uKey = getUserTransactionsKey(adminTopUpUser.email);
+      const existing = loadUserTransactions(adminTopUpUser.email, storedUsers);
+      const updatedTx = [rechargeTx, ...existing];
+      localStorage.setItem(uKey, JSON.stringify(updatedTx));
+    }
+
     setStoredUsers((prev) =>
       prev.map((u) => {
         if (u.id === adminTopUpUser.id) {
+          const userExistingTx = loadUserTransactions(u.email, prev);
           return {
             ...u,
             balance: u.balance + amt,
             lastActive: 'الآن (شحن إداري)',
+            transactions: [rechargeTx, ...userExistingTx],
           };
         }
         return u;
@@ -1632,8 +2126,36 @@ export default function App() {
 
   // Direct handlers for DesktopAdminDashboard
   const handleDirectTopUp = (user: StoredUserAccount, amount: number) => {
+    const rechargeTx: Transaction = {
+      id: 'tx-topup-' + Date.now(),
+      type: 'recharge',
+      title: 'شحن رصيد من الإدارة (+)',
+      amount: amount,
+      date: new Date().toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
+      status: 'completed',
+    };
+
+    if (userData.email.toLowerCase() === user.email.toLowerCase()) {
+      setTransactions((prev) => [rechargeTx, ...prev]);
+    } else {
+      const uKey = getUserTransactionsKey(user.email);
+      const existing = loadUserTransactions(user.email, storedUsers);
+      const updatedTx = [rechargeTx, ...existing];
+      localStorage.setItem(uKey, JSON.stringify(updatedTx));
+    }
+
     setStoredUsers((prev) =>
-      prev.map((u) => (u.id === user.id ? { ...u, balance: u.balance + amount } : u))
+      prev.map((u) => {
+        if (u.id === user.id) {
+          const userExistingTx = loadUserTransactions(u.email, prev);
+          return {
+            ...u,
+            balance: u.balance + amount,
+            transactions: [rechargeTx, ...userExistingTx],
+          };
+        }
+        return u;
+      })
     );
     if (userData.email.toLowerCase() === user.email.toLowerCase()) {
       setUserData((prev) => ({ ...prev, balance: prev.balance + amount }));
@@ -1664,6 +2186,48 @@ export default function App() {
   const handleDirectSendBroadcast = (title: string, message: string, target: string) => {
     addNotification(title, message, 'admin_broadcast', target);
     showToast('تم إرسال الإشعار للزبائن', 'تم بث الرسالة بنجاح وستظهر في مركز الإشعارات لدى الزبائن فوراً!', 'success');
+  };
+
+  // Developer capability: Edit card name of any user ("واجعل حساب المطور يكدر يغير اسم بطاقت اي شخص")
+  const handleUpdateUserName = (userId: string, newName: string) => {
+    if (!isAdmin) {
+      showToast('خطأ في الصلاحيات', 'يمنع تعديل اسم البطاقة إلا لحساب المطور المعتمد!', 'error');
+      return;
+    }
+    const cleanName = newName.trim();
+    if (!cleanName) return;
+
+    let targetCardNum = '';
+    let targetEmail = '';
+
+    setStoredUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === userId) {
+          targetCardNum = u.cardNumber;
+          targetEmail = u.email;
+          return {
+            ...u,
+            name: cleanName,
+            lastActive: 'تم تعديل اسم البطاقة بواسطة المطور',
+          };
+        }
+        return u;
+      })
+    );
+
+    // If currently active user matches target user, sync name
+    if (userData.email && targetEmail && userData.email.toLowerCase() === targetEmail.toLowerCase()) {
+      setUserData((prev) => ({ ...prev, name: cleanName }));
+    }
+
+    addNotification(
+      'تحديث اسم البطاقة 💳',
+      `تم تحديث وتعديل اسم صاحب البطاقة رقم (${targetCardNum}) إلى: "${cleanName}" بنجاح بواسطة المطور.`,
+      'addition',
+      targetEmail
+    );
+
+    showToast('تم تعديل اسم البطاقة', `تم تغيير اسم صاحب البطاقة إلى (${cleanName}) بنجاح!`, 'success');
   };
 
   // Toggle chat window
@@ -1726,9 +2290,9 @@ export default function App() {
       ) {
         replyText = `جميع الإعلانات والرعايات المعروضة في متجر coreX هي إعلانات هادفة ولطيفة وأخلاقية 100% 🌿 (تعليم، مبادرات وطنية، أعمال خيرية، ثقافة وصحة).\n\nنحن نحظر تماماً أي إعلانات قمار أو مراهنات أو محتوى خادش. هذه الإعلانات تظهر للزوار برفق لدعم استمرار خدمات المتجر وتطويره بالدينار العراقي (د.ع).`;
       }
-      // 3. Admin account questions
+      // 3. Management & Security questions
       else if (q.includes('ادارة') || q.includes('إدارة') || q.includes('مدير') || q.includes('ادمن') || q.includes('admin') || q.includes('jafar')) {
-        replyText = `الحساب الإداري الرسمي والوحيد المعتمد للمتجر هو: ${ADMIN_EMAIL}. عند تسجيل الدخول بهذا البريد يتم فتح لوحة التحكم الإدارية كاملة.`;
+        replyText = 'فريق إدارة ودعم متجر coreX يعمل على مدار الساعة لخدمتكم وضمان أمان جميع العمليات والبطاقات بالدينار العراقي (د.ع). لأي مساعدة، يمكنك كتابة استفسارك هنا مباشرة.';
       }
       // 3. Card Number questions ("رقم بطاقتك")
       else if (q.includes('رقم بطاقت') || q.includes('رقم البطاقة') || q.includes('ايدي') || q.includes('معرف')) {
@@ -1825,7 +2389,7 @@ export default function App() {
     const confirmMsg: ChatMessage = {
       id: 'ai-confirm-' + Date.now(),
       sender: 'ai',
-      text: `تم رفع إشعار وتذكرة صيانة لحساب الإدارة (${ADMIN_EMAIL}) بنجاح. سيتم إرسال رسالة إلى بريدك الإلكتروني (${emailToUse}) فور معالجة المشكلة.`,
+      text: `تم رفع إشعار وتذكرة صيانة لفريق الإدارة والدعم بنجاح. سيتم إرسال رسالة إلى بريدك الإلكتروني (${emailToUse}) فور معالجة المشكلة.`,
     };
 
     setChatMessages((prev) => [...prev, confirmMsg]);
@@ -1838,7 +2402,7 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-[#f8fafc] p-3 sm:p-6 pb-24 flex flex-col font-sans select-none relative">
+    <div className={`min-h-screen ${appTheme === 'charcoal' ? 'theme-charcoal bg-[#09090b]' : 'theme-midnight bg-[#0f172a]'} text-[#f8fafc] p-3 sm:p-6 pb-24 flex flex-col font-sans select-none relative transition-colors duration-200`}>
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[2500] w-[90%] max-w-md animate-in slide-in-from-top-4 duration-200">
@@ -1954,14 +2518,28 @@ export default function App() {
                   <span>دخول</span>
                 </button>
               ) : (
-                <button
-                  className="p-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-400 transition cursor-pointer"
-                  id="logout-btn"
-                  onClick={handleLogout}
-                  title="تسجيل الخروج من الحساب"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('settings')}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#0f172a] hover:bg-[#1e293b] border border-[#334155] text-xs transition cursor-pointer"
+                    title="فتح قسم الإعدادات والتحكم بالحساب"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${isAdmin ? 'bg-purple-400 animate-pulse' : 'bg-emerald-400'}`}></span>
+                    <span className="font-bold text-white max-w-[90px] truncate text-[11px]">
+                      {isAdmin ? 'المطور (جعفر)' : userData.name}
+                    </span>
+                    <Settings className="w-3 h-3 text-[#94a3b8]" />
+                  </button>
+                  <button
+                    className="p-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-400 transition cursor-pointer"
+                    id="logout-btn"
+                    onClick={handleLogout}
+                    title="تسجيل الخروج من الحساب"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
             </div>
           </header>
@@ -2005,16 +2583,18 @@ export default function App() {
               onWithdrawProfitsToAdminWallet={handleWithdrawProfitsToAdminWallet}
               onSwitchToMobilePreview={() => setActiveTab('store')}
               onOpenPlusArchitecture={() => setIsArchitectureModalOpen(true)}
+              onUpdateUserName={handleUpdateUserName}
+              onAdminSetSubscription={handleAdminSetSubscription}
               onLogout={handleLogout}
             />
           </div>
         )}
 
-        {/* TAB 1: STORE & ADMIN VIEW */}
+        {/* TAB 1: STORE VIEW */}
         {activeTab === 'store' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Real Official Google AdSense Header Banner Unit OR Ad-Free VIP Badge */}
-            {!userData.isAdFreeSubscriber ? (
+            {/* Real Official Google AdSense Header Banner Unit (Only when explicitly enabled by owner and user not ad-free) */}
+            {adsenseSettings.isAdsEnabled && !userData.isAdFreeSubscriber && (
               <div className="w-full">
                 <GoogleAdSenseUnit
                   slotType="header_banner"
@@ -2023,7 +2603,10 @@ export default function App() {
                   onAdClick={handleAdSenseClick}
                 />
               </div>
-            ) : (
+            )}
+
+            {/* VIP Ad-Free Active Banner (only shown if user is actually subscribed) */}
+            {userData.isAdFreeSubscriber && (
               <div className="w-full rounded-2xl bg-gradient-to-r from-amber-950/40 via-[#1e293b] to-yellow-950/30 border border-amber-500/40 p-3 shadow-md flex items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
@@ -2049,6 +2632,52 @@ export default function App() {
                 >
                   إدارة الاشتراك
                 </button>
+              </div>
+            )}
+
+            {/* Guest Mandatory Login/Signup Notice for Purchasing & Recharging */}
+            {!isLoggedIn && (
+              <div className="w-full rounded-2xl bg-gradient-to-r from-indigo-950/70 via-[#1e293b] to-blue-950/60 border-2 border-indigo-500/50 p-4 shadow-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 shrink-0 shadow">
+                    <LogIn className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 font-bold text-white text-sm">
+                      <span>تنبيه نظام المتجر: تسجيل الدخول إلزامي للشراء والشحن</span>
+                      <span className="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full border border-red-500/30 font-bold">
+                        ممنوع الشراء كزائر
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                      وفقاً لقوانين المتجر، يمنع منعاً باتاً شراء أي كرت أو تعبئة رصيدك إلا عن طريق تسجيل الدخول أو إنشاء حساب جديد لربط الرصيد والبطاقة بهويتك.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('login');
+                      setIsLoginModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>تسجيل الدخول</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('register');
+                      setIsLoginModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#334155] hover:bg-[#475569] text-white font-bold text-xs transition border border-slate-600 active:scale-95 cursor-pointer"
+                  >
+                    إنشاء حساب جديد
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2114,8 +2743,8 @@ export default function App() {
               >
                 {filteredProducts.map((p, pIdx) => (
                   <React.Fragment key={p.id}>
-                    {/* Real Official Google AdSense In-Feed Ad Unit (Hidden for VIP Ad-Free Subscribers) */}
-                    {pIdx === 2 && !userData.isAdFreeSubscriber && (
+                    {/* Real Official Google AdSense In-Feed Ad Unit (Only if enabled by owner and user not ad-free) */}
+                    {pIdx === 2 && adsenseSettings.isAdsEnabled && !userData.isAdFreeSubscriber && (
                       <div className="col-span-2 my-1">
                         <GoogleAdSenseUnit
                           slotType="infeed_card"
@@ -2158,7 +2787,7 @@ export default function App() {
                       {isAdmin ? (
                         <button
                           type="button"
-                          className="btn btn-danger w-full bg-[#ef4444] hover:bg-[#dc2626] text-white py-2 rounded-lg text-xs font-bold transition"
+                          className="btn btn-danger w-full bg-[#ef4444] hover:bg-[#dc2626] text-white py-2 rounded-lg text-xs font-bold transition cursor-pointer"
                           onClick={() => setProductToDelete(p)}
                         >
                           حذف
@@ -2166,12 +2795,25 @@ export default function App() {
                       ) : (
                         <button
                           type="button"
-                          className="btn w-full bg-[#4f46e5] hover:bg-[#4338ca] text-white py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5"
+                          className={`btn w-full py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                            isLoggedIn
+                              ? 'bg-[#4f46e5] hover:bg-[#4338ca] text-white shadow-md active:scale-95'
+                              : 'bg-indigo-950/70 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/40'
+                          }`}
                           style={{ width: '100%' }}
                           onClick={() => handleBuyProduct(p)}
                         >
-                          <ShoppingBag className="w-3.5 h-3.5" />
-                          <span>شراء</span>
+                          {isLoggedIn ? (
+                            <>
+                              <ShoppingBag className="w-3.5 h-3.5" />
+                              <span>شراء</span>
+                            </>
+                          ) : (
+                            <>
+                              <LogIn className="w-3.5 h-3.5" />
+                              <span>شراء (سجل الدخول)</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
@@ -2186,17 +2828,214 @@ export default function App() {
         {/* TAB 2: WALLET VIEW (STRICTLY IQD & "رقم بطاقتك") */}
         {activeTab === 'wallet' && (
           <div className="space-y-6 animate-in fade-in duration-200">
+            {/* PROMINENT WELCOME MESSAGE & REGISTRATION GUIDE FOR UNREGISTERED VISITORS */}
+            {!isLoggedIn && (
+              <div className="bg-gradient-to-br from-[#1e1b4b] via-[#1e293b] to-[#0f172a] border-2 border-indigo-500/70 rounded-3xl p-6 sm:p-7 shadow-2xl relative overflow-hidden text-right space-y-5 animate-in fade-in slide-in-from-top-4 duration-300">
+                {/* Background ambient light */}
+                <div className="absolute -top-24 -left-24 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                {/* Banner Header */}
+                <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-13 h-13 rounded-2xl bg-indigo-600/30 border border-indigo-400/50 flex items-center justify-center text-indigo-300 shadow-lg shadow-indigo-600/20">
+                      <Sparkles className="w-7 h-7 text-amber-300 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                          مرحباً بك في المحفظة المالية الرقمية
+                        </span>
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full font-bold">
+                          دليل الزائر الجديد ✨
+                        </span>
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-black text-white mt-1">
+                        كيف تبدأ باستخدام الدينار العراقي (د.ع) والحصول على رقم بطاقتك؟
+                      </h2>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('register');
+                        setIsLoginModalOpen(true);
+                      }}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/30 active:scale-95 transition cursor-pointer"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>إنشاء حساب جديد مجاناً</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('login');
+                        setIsLoginModalOpen(true);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 font-bold text-xs transition cursor-pointer"
+                    >
+                      تسجيل الدخول
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed max-w-3xl relative z-10">
+                  أهلاً بك زائرنا العزيز! لتتمكن من استخدام العملة العراقية <strong className="text-white">(د.ع)</strong> وإرسال واستلام الأموال وشحن الرصيد والتسوق الفوري، تحتاج إلى حساب خاص يصدر معه <strong className="text-amber-300">رقم بطاقتك الرقمية الرسمية المكون من 10 أرقام</strong> تلقائياً وفورياً. اتبع الخطوات البسيطة التالية:
+                </p>
+
+                {/* 3 Clear Step Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 relative z-10">
+                  <div className="p-4 rounded-2xl bg-[#0f172a]/90 border border-indigo-500/40 hover:border-indigo-400/60 transition space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-300 font-bold font-mono text-xs flex items-center justify-center border border-indigo-400/30">
+                        1
+                      </span>
+                      <UserPlus className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <h4 className="font-bold text-white text-xs">الخطوة الأولى: فتح نافذة التسجيل</h4>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      انقر على زر <strong className="text-indigo-300">"إنشاء حساب جديد"</strong> بالأعلى أو من رأس الموقع لفتح استمارة التسجيل.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#0f172a]/90 border border-indigo-500/40 hover:border-indigo-400/60 transition space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-300 font-bold font-mono text-xs flex items-center justify-center border border-indigo-400/30">
+                        2
+                      </span>
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <h4 className="font-bold text-white text-xs">الخطوة الثانية: إدخال بياناتك الأساسية</h4>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      أدخل اسمك الكريم، بريدك الإلكتروني، وكلمة المرور الخاصة بك لتأمين حسابك ومحفظتك (يستغرق أقل من دقيقة).
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-gradient-to-b from-[#0f172a]/90 to-amber-950/30 border border-amber-500/40 space-y-2 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-bold font-mono text-xs flex items-center justify-center border border-amber-400/40">
+                        3
+                      </span>
+                      <CreditCard className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <h4 className="font-bold text-amber-200 text-xs">الخطوة الثالثة: استلام بطاقتك والعملة (د.ع)</h4>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      فور إتمام التسجيل، يتم إصدار <strong className="text-amber-300">رقم بطاقتك الرقمية (10 أرقام)</strong> ورصيدك الافتتاحي بالدينار العراقي (د.ع) لتستمتع بكافة خدمات المنصة!
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer Note */}
+                <div className="p-3.5 rounded-2xl bg-indigo-950/60 border border-indigo-500/40 flex flex-wrap items-center justify-between gap-3 text-xs relative z-10">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>
+                      لديك حساب سابق؟ سجّل دخولك مباشرة لاستعادة رقم بطاقتك ورصيدك المحفوظ.
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('login');
+                      setIsLoginModalOpen(true);
+                    }}
+                    className="text-indigo-300 hover:text-white font-bold underline cursor-pointer text-xs"
+                  >
+                    الانتقال لتسجيل الدخول ←
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* PROMINENT LOW-BALANCE WARNING ALERT (< 1,000 IQD / د.ع) */}
+            {/* "إظهار تنبيه مرئي (Toast) أو أيقونة تحذير عند انخفاض الرصيد عن ١٠٠٠ د.ع، لتذكير المستخدم بضرورة تعبئة الرصيد" */}
+            {isLoggedIn && userData.balance < 1000 && (
+              <div className="rounded-2xl p-4 sm:p-5 bg-gradient-to-r from-red-950/70 via-amber-950/60 to-orange-950/70 border-2 border-amber-500/80 shadow-2xl flex flex-wrap items-center justify-between gap-4 text-right animate-in fade-in slide-in-from-top-3 duration-300">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/25 border-2 border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-500/20 animate-pulse">
+                    <AlertTriangle className="w-7 h-7 text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                        تنبيه أمان المحفظة
+                      </span>
+                      <span className="text-[10px] bg-red-500/30 text-red-200 border border-red-500/50 px-2.5 py-0.5 rounded-full font-bold font-mono animate-pulse">
+                        الرصيد أقل من 1,000 د.ع ⚠️
+                      </span>
+                    </div>
+                    <h3 className="text-base sm:text-lg font-black text-white mt-1">
+                      رصيدك الحالي منخفض: <span className="text-amber-400 font-mono font-bold">{userData.balance.toLocaleString()} د.ع</span> فقط
+                    </h3>
+                    <p className="text-xs text-amber-200/90 mt-1 max-w-xl leading-relaxed">
+                      نود تذكيرك بأن رصيدك الحالي أقل من 1,000 د.ع. يُرجى تعبئة وتغذية رصيد المحفظة لتتمكن من شراء البطاقات الرقمية، تحويل الأموال، وإتمام عملياتك بسلاسة وبدون توقف.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 mr-auto">
+                  <button
+                    type="button"
+                    onClick={handleOpenRechargeModal}
+                    className="px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-xl shadow-amber-500/30 transition active:scale-95 cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4 stroke-[3]" />
+                    <span>تعبئة الرصيد الآن 💳</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-6 shadow-xl relative overflow-hidden">
+              {/* Unregistered Visitor Notice Banner in Balance Card */}
+              {!isLoggedIn && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-amber-300">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>أنت تشاهد حالياً وضع الزائر التجريبي. سجّل حسابك الآن ليتم إصدار رقم بطاقتك الرسمي الدائم وحفظ رصيدك بالدينار العراقي (د.ع).</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('register');
+                      setIsLoginModalOpen(true);
+                    }}
+                    className="px-3 py-1 rounded-lg bg-amber-500 text-black hover:bg-amber-400 font-bold cursor-pointer text-[11px] shrink-0"
+                  >
+                    تسجيل الآن
+                  </button>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <span className="text-xs font-semibold text-[#94a3b8] flex items-center gap-1.5">
-                    <Wallet className="w-4 h-4 text-[#00e5ff]" />
-                    رصيد محفظتك الحالي بالدينار العراقي
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-[#94a3b8] flex items-center gap-1.5">
+                      <Wallet className="w-4 h-4 text-[#00e5ff]" />
+                      رصيد محفظتك الحالي بالدينار العراقي
+                    </span>
+                    {isLoggedIn && userData.balance < 1000 && (
+                      <button
+                        type="button"
+                        onClick={handleOpenRechargeModal}
+                        className="text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1.5 animate-pulse transition cursor-pointer"
+                        title="انقر لتعبئة الرصيد فوراً"
+                      >
+                        <AlertTriangle className="w-3 h-3 text-red-400" />
+                        <span>رصيد منخفض (&lt; 1,000 د.ع) - اضغط للتعبئة</span>
+                      </button>
+                    )}
+                  </div>
+
                   <div className="text-3xl sm:text-4xl font-black text-white mt-2 font-mono flex items-baseline gap-2">
-                    <span className="text-[#00e5ff]">{userData.balance.toLocaleString()}</span>
+                    <span className={isLoggedIn && userData.balance < 1000 ? "text-amber-400 font-extrabold" : "text-[#00e5ff]"}>
+                      {userData.balance.toLocaleString()}
+                    </span>
                     <span className="text-sm font-normal text-[#94a3b8]">دينار عراقي (د.ع)</span>
                   </div>
+
                   {/* Shows ONLY Name and Card Number ("رقم بطاقتك") with copy button */}
                   <div className="text-xs text-[#94a3b8] mt-2 flex items-center gap-2 flex-wrap">
                     <span className="text-white font-bold">{userData.name}</span>
@@ -2220,15 +3059,22 @@ export default function App() {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setIsSendModalOpen(true)}
-                    className="px-4 py-2.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-xs flex items-center gap-2 shadow-md transition"
+                    onClick={() => {
+                      if (!isLoggedIn || !userData.email) {
+                        showToast('تسجيل الدخول مطلوب', 'ممنوع إرسال الأموال إلا بعد تسجيل الدخول أو إنشاء حساب جديد!', 'error');
+                        setIsLoginModalOpen(true);
+                        return;
+                      }
+                      setIsSendModalOpen(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold text-xs flex items-center gap-2 shadow-md transition cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
                     <span>إرسال أموال</span>
                   </button>
                   <button
-                    onClick={() => setIsRechargeModalOpen(true)}
-                    className="px-4 py-2.5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-bold text-xs flex items-center gap-2 shadow-md transition"
+                    onClick={handleOpenRechargeModal}
+                    className="px-4 py-2.5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-bold text-xs flex items-center gap-2 shadow-md transition cursor-pointer"
                   >
                     <PlusCircle className="w-4 h-4" />
                     <span>تعبئة رصيد</span>
@@ -2555,19 +3401,38 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: SETTINGS & VIP CARD - STRICTLY SHOWS "بطاقة", NAME & "رقم بطاقتك" */}
-        {activeTab === 'settings' && (
+        {/* TAB 3: DEDICATED CARD VIEW ("قسم البطاقة مخصص فقط للبطاقة") */}
+        {activeTab === 'card' && (
           <div className="max-w-xl mx-auto w-full space-y-6 animate-in fade-in duration-200">
+            {/* Header banner explaining this section is dedicated to the digital card */}
+            <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-[#00e5ff] flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white m-0">قسم البطاقة الرقمية 💳</h2>
+                  <p className="text-[11px] text-[#94a3b8] m-0">قسم مخصص فقط لعرض بيانات وتفاصيل بطاقتك الرقمية</p>
+                </div>
+              </div>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
+                <Check className="w-3 h-3 stroke-[3]" />
+                <span>بطاقة نشطة ومفعلة</span>
+              </span>
+            </div>
+
             {/* Digital Card Component - Strictly Displays ONLY "بطاقة" (Card) with no tier badges */}
-            <div className="rainbow-border p-6 rounded-2xl bg-[#161b24] text-white shadow-2xl relative">
+            <div className="rainbow-border p-6 rounded-2xl bg-[#161b24] text-white shadow-2xl relative overflow-hidden">
               <div className="flex justify-between items-start">
                 <div>
                   <div className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
                     <CreditCard className="w-5 h-5 text-[#00e5ff]" />
                     <span>بطاقة</span>
                   </div>
+                  <span className="text-[10px] text-indigo-300 font-mono tracking-wider">coreX DIGITAL CARD</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-400" />
                   <div className="w-8 h-6 rounded bg-amber-400 border border-amber-300 flex items-center justify-center text-[9px] font-black text-black">
                     CHIP
                   </div>
@@ -2597,6 +3462,492 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Dedicated Card Info & Quick Actions */}
+            <div className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] space-y-3.5 shadow-lg">
+              <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
+                <div className="font-bold text-xs text-white flex items-center gap-2">
+                  <Info className="w-4 h-4 text-indigo-400" />
+                  <span>معلومات واستخدامات البطاقة</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">10 أرقام فريدة</span>
+              </div>
+              <ul className="text-xs text-slate-300 space-y-2 leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-400 font-bold">•</span>
+                  <span>رقم بطاقتك هذا مخصص لاستلام الأموال والتحويلات المباشرة من المستخدمين الآخرين.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-400 font-bold">•</span>
+                  <span>كل حساب تمتلكه يحمل رقم بطاقة مستقل خاص به ورصيد منفصل بالدينار العراقي (د.ع).</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#00e5ff] font-bold">•</span>
+                  <span>تأكد من مشاركة رقم البطاقة الصحيح الموضح أعلاه عند طلب التحويل المالي لحسابك.</span>
+                </li>
+              </ul>
+
+              <div className="pt-2 border-t border-[#334155] flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-400">للتحكم بالحسابات وتبديلها أو تغيير الرمز:</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('settings')}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center gap-1.5 shadow cursor-pointer active:scale-95"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>الانتقال لقسم الإعدادات ⚙️</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: DEDICATED SETTINGS & ACCOUNT CONTROL VIEW ("التحكم بالحسابات من قسم الإعدادات وليس من قسم البطاقة") */}
+        {activeTab === 'settings' && (
+          <div className="max-w-xl mx-auto w-full space-y-6 animate-in fade-in duration-200">
+            {/* Settings Header Banner */}
+            <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white m-0">قسم الإعدادات والتحكم بالحسابات ⚙️</h2>
+                  <p className="text-[11px] text-[#94a3b8] m-0">إدارة وتبديل الحسابات، كلمة المرور، مظهر التطبيق والاشتراك</p>
+                </div>
+              </div>
+              <span className="text-[10px] bg-slate-800 text-amber-300 border border-slate-700 px-2.5 py-1 rounded-full font-bold">
+                الحساب الحالي: {userData.name}
+              </span>
+            </div>
+
+            {/* MULTI-ACCOUNT SWITCHER (STRICTLY MAX 2 ACCOUNTS: "وتبديل الحسابات كحد اقصى ٢ حسابات فقط وحساب تجريبي لا يوجد ماكو انشاء حساب سريع تنشى عن طريق بريد واسم ورمز") */}
+            <div className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] space-y-4 shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#334155]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-sm text-white">إدارة وتبديل الحسابات</h3>
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold font-mono">
+                        كحد أقصى حسابين (2) فقط
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      التبديل الفوري بين الحسابين بضغطة زر واحدة دون تسجيل خروج • الحسابات المسجلة: ({storedUsers.length} من 2)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {storedUsers.length < 2 ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddAccountOpen(!isAddAccountOpen)}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>{isAddAccountOpen ? 'إغلاق الاستمارة' : 'إنشاء الحساب الثاني'}</span>
+                    </button>
+                  ) : (
+                    <span className="text-[11px] bg-slate-800 text-amber-300 border border-slate-700 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                      <span>الحد الأقصى مكتمل (2 من 2)</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                لا حاجة لتسجيل الخروج! يمكنك التبديل بحرية بين حسابين كحد أقصى (2) بضغطة زر واحدة. يتم إنشاء الحساب الثاني عبر إدخال <strong className="text-amber-300">الاسم، البريد الإلكتروني، والرمز السري</strong>. كل حساب مستقل تماماً برصيده بالدينار العراقي (د.ع) ورقم بطاقته (10 أرقام) وسجل معاملاته:
+              </p>
+
+              {/* Form to Add / Register a Second Account (Strictly name, email, and password) */}
+              {isAddAccountOpen && storedUsers.length < 2 && (
+                <form
+                  onSubmit={handleCreateSecondAccount}
+                  className="p-4 rounded-xl bg-[#0f172a] border border-indigo-500/50 space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-200"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-indigo-900/50">
+                    <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                      <UserPlus className="w-4 h-4 text-indigo-400" />
+                      إنشاء الحساب الثاني (بالاسم والبريد والرمز السري)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddAccountOpen(false)}
+                      className="text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[11px] text-slate-300 block mb-1 font-semibold">1. اسم صاحب الحساب:</label>
+                      <input
+                        type="text"
+                        value={newAccName}
+                        onChange={(e) => setNewAccName(e.target.value)}
+                        placeholder="مثلاً: علي الكرخي"
+                        required
+                        className="w-full p-2.5 rounded-xl bg-[#1e293b] border border-[#334155] text-xs text-white outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-300 block mb-1 font-semibold">2. البريد الإلكتروني:</label>
+                      <input
+                        type="email"
+                        value={newAccEmail}
+                        onChange={(e) => setNewAccEmail(e.target.value)}
+                        placeholder="user2@example.com"
+                        required
+                        className="w-full p-2.5 rounded-xl bg-[#1e293b] border border-[#334155] text-xs text-white outline-none dir-ltr text-right focus:border-indigo-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-300 block mb-1 font-semibold">3. الرمز السري / كلمة المرور:</label>
+                      <input
+                        type="password"
+                        value={newAccPass}
+                        onChange={(e) => setNewAccPass(e.target.value)}
+                        placeholder="رمز الدخول للحساب"
+                        required
+                        className="w-full p-2.5 rounded-xl bg-[#1e293b] border border-[#334155] text-xs text-white outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-[#334155]/60 text-xs">
+                    <span className="text-[11px] text-slate-400">
+                      يتم إصدار رقم بطاقة مكون من 10 أرقام ورصيد 0 د.ع للحساب تلقائياً.
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddAccountOpen(false)}
+                        className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs cursor-pointer"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>إنشاء وتثبيت الحساب الثاني ✓</span>
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+
+              {/* LIST OF STORED ACCOUNTS (STRICTLY 2 MAX) */}
+              <div className="space-y-2.5">
+                {storedUsers.slice(0, 2).map((acc, accIdx) => {
+                  const isActive = isLoggedIn && userData.email.toLowerCase() === acc.email.toLowerCase();
+                  const isDev = acc.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+                  return (
+                    <div
+                      key={acc.id || acc.email}
+                      className={`p-3.5 rounded-xl border-2 transition flex flex-wrap items-center justify-between gap-3 ${
+                        isActive
+                          ? 'bg-[#0f172a] border-emerald-500 shadow-md shadow-emerald-500/10'
+                          : 'bg-[#0f172a]/70 border-[#334155] hover:border-slate-500'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border ${
+                            isActive
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              : 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
+                          }`}
+                        >
+                          {acc.name ? acc.name.charAt(0) : 'ح'}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-white text-xs">{acc.name}</h4>
+                            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 font-mono">
+                              حساب #{accIdx + 1}
+                            </span>
+                            {isActive && (
+                              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                                <span>الحساب النشط حالياً</span>
+                              </span>
+                            )}
+                            {isDev && (
+                              <span className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1.5 py-0.5 rounded font-bold">
+                                إدارة
+                              </span>
+                            )}
+                            {acc.isAdFreeSubscriber && (
+                              <span className="text-[9px] bg-amber-400 text-black px-1.5 py-0.5 rounded font-bold">
+                                VIP Plus
+                              </span>
+                            )}
+                            <span className="text-[9px] bg-slate-800 text-emerald-400 border border-slate-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>الرمز مسجل ومحمي</span>
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1 flex-wrap">
+                            <span className="font-mono text-amber-400 font-bold">
+                              بطاقة: {acc.cardNumber}
+                            </span>
+                            <span>•</span>
+                            <span className="font-mono dir-ltr">{acc.email}</span>
+                            <span>•</span>
+                            <span className="font-bold font-mono text-emerald-400">
+                              الرصيد: {acc.balance.toLocaleString()} د.ع
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 mr-auto">
+                        {isActive ? (
+                          <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>مفعّل الآن</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSwitchAccount(acc)}
+                            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>تبديل لهذا الحساب</span>
+                          </button>
+                        )}
+
+                        {!isActive && !isDev && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteStoredAccount(acc.id, acc.email, acc.name)}
+                            className="p-1.5 rounded-lg bg-red-950/30 hover:bg-red-900/50 text-red-400 border border-red-500/30 transition cursor-pointer"
+                            title="حذف هذا الحساب لإفساح المجال لإنشاء حساب ثانٍ جديد"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Status note when only 1 account exists */}
+              {storedUsers.length < 2 && (
+                <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between gap-3 text-xs text-slate-300">
+                  <div className="flex items-center gap-2 text-indigo-300">
+                    <UserPlus className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span>لديك حساب واحد مسجل حالياً. متاح لك إنشاء الحساب الثاني عبر إدخال الاسم والبريد والرمز.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddAccountOpen(true)}
+                    className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer shrink-0"
+                  >
+                    إنشاء الحساب الثاني
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* PASSWORD CONTROL & ACCOUNT MANAGEMENT ("التحكم بتغير كلمه المرور") */}
+            <div className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] space-y-4 shadow-xl">
+              <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
+                <div className="font-bold text-sm text-white flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-indigo-400" />
+                  <span>التحكم بكلمة المرور والرمز السري (Password Control)</span>
+                </div>
+                <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-mono">
+                  الحساب النشط: {userData.name}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between text-[#94a3b8]">
+                  <span>البريد الإلكتروني للحساب الحالي:</span>
+                  <span className="text-white font-mono dir-ltr">{userData.email}</span>
+                </div>
+                <div className="flex justify-between items-center text-[#94a3b8]">
+                  <span>رقم بطاقتك:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-400 font-mono font-bold">{userData.cardNumber}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(userData.cardNumber.toString(), 'رقم بطاقتك')}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white transition text-[10px] flex items-center gap-1 border border-slate-700 cursor-pointer"
+                      title="نسخ رقم بطاقتك"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>نسخ</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Password update form */}
+              <div className="pt-3 border-t border-[#334155] space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-xs text-white flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-[#00e5ff]" />
+                    <span>تغيير الرمز السري / كلمة المرور للحساب الحالي:</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    يحفظ التعديل فوراً في بيانات الحساب المحفوظة
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showPassChangeVisibility ? 'text' : 'password'}
+                    value={changePassInput}
+                    onChange={(e) => setChangePassInput(e.target.value)}
+                    placeholder="أدخل كلمة المرور أو الرمز الجديد هنا..."
+                    className="w-full p-2.5 pl-10 rounded-xl border border-[#334155] bg-[#0f172a] text-white text-xs outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassChangeVisibility(!showPassChangeVisibility)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                    title={showPassChangeVisibility ? 'إخفاء الرمز' : 'إظهار الرمز'}
+                  >
+                    {showPassChangeVisibility ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleChangePassword}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>حفظ وتثبيت كلمة المرور الجديدة 🔒</span>
+                </button>
+              </div>
+            </div>
+
+            {/* THEME & APPEARANCE SWITCHER ("مفتاح تبديل بين الوضع الداكن الحالي ووضع داكن آخر أكثر تباينًا بلمسات رمادية داكنة") */}
+            <div className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] space-y-4 shadow-lg">
+              <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
+                <div className="font-bold text-sm text-white flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-indigo-400" />
+                  <span>مظهر التطبيق والوضع الداكن (Theme & Appearance)</span>
+                </div>
+                <span className={`text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-full border ${
+                  appTheme === 'charcoal'
+                    ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                    : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+                }`}>
+                  {appTheme === 'charcoal' ? 'رمادي عالي التباين (Charcoal)' : 'داكن كحلي (Midnight Slate)'}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                يمكنك التبديل بسهولة بين الوضع المظلم الحالي (الدرجات الكحلية الهادئة) ووضع داكن آخر نقي وعالي التباين بلمسات رمادية وفحمية داكنة مريحة للعينين والشاشات الحديثة:
+              </p>
+
+              {/* Theme Selector Toggle Options */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Mode 1: Midnight Slate (Current default) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppTheme('midnight');
+                    showToast('تم تغيير المظهر 🎨', 'تم تفعيل الوضع الداكن الكحلي الهادئ (Midnight Slate).', 'info');
+                  }}
+                  className={`p-3.5 rounded-xl border-2 text-right transition cursor-pointer flex flex-col justify-between gap-3 relative ${
+                    appTheme === 'midnight'
+                      ? 'bg-[#0f172a] border-indigo-500 shadow-lg shadow-indigo-500/10'
+                      : 'bg-[#0f172a]/60 border-[#334155] hover:border-slate-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-950/80 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                        <Moon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-white">الوضع الداكن الكحلي</div>
+                        <div className="text-[10px] text-indigo-300 font-mono">Midnight Slate (الحالي)</div>
+                      </div>
+                    </div>
+
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                      appTheme === 'midnight' ? 'border-indigo-400 bg-indigo-500 text-white' : 'border-slate-600'
+                    }`}>
+                      {appTheme === 'midnight' && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    خلفيات كحلية وداكنة كلاسيكية ناعمة مستوحاة من سماء الليل (#0f172a و #1e293b).
+                  </p>
+
+                  <div className="flex items-center gap-1.5 pt-1.5 border-t border-[#334155]/60 text-[10px] text-[#94a3b8]">
+                    <span className="w-3 h-3 rounded-full bg-[#0f172a] border border-[#334155]"></span>
+                    <span className="w-3 h-3 rounded-full bg-[#1e293b] border border-[#334155]"></span>
+                    <span className="w-3 h-3 rounded-full bg-[#2563eb]"></span>
+                    <span className="mr-auto font-semibold">ناعم ومتزن للعين</span>
+                  </div>
+                </button>
+
+                {/* Mode 2: High Contrast Charcoal */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppTheme('charcoal');
+                    showToast('تم تغيير المظهر 🎨', 'تم تفعيل الوضع الرمادي الداكن عالي التباين (High Contrast Charcoal).', 'success');
+                  }}
+                  className={`p-3.5 rounded-xl border-2 text-right transition cursor-pointer flex flex-col justify-between gap-3 relative ${
+                    appTheme === 'charcoal'
+                      ? 'bg-[#18181b] border-amber-400 shadow-lg shadow-amber-500/10'
+                      : 'bg-[#18181b]/60 border-[#3f3f46] hover:border-zinc-500'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-600 flex items-center justify-center text-amber-300">
+                        <Contrast className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-white">الوضع الرمادي الداكن</div>
+                        <div className="text-[10px] text-amber-300 font-mono">High Contrast Charcoal</div>
+                      </div>
+                    </div>
+
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                      appTheme === 'charcoal' ? 'border-amber-400 bg-amber-400 text-black' : 'border-zinc-600'
+                    }`}>
+                      {appTheme === 'charcoal' && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-300 leading-relaxed">
+                    خلفيات فحمية ورمادية داكنة بنسبة تباين عالية ونقاء استثنائي للخطوط والأزرار (#09090b و #18181b).
+                  </p>
+
+                  <div className="flex items-center gap-1.5 pt-1.5 border-t border-[#3f3f46]/60 text-[10px] text-zinc-400">
+                    <span className="w-3 h-3 rounded-full bg-[#09090b] border border-zinc-700"></span>
+                    <span className="w-3 h-3 rounded-full bg-[#18181b] border border-zinc-700"></span>
+                    <span className="w-3 h-3 rounded-full bg-[#f59e0b]"></span>
+                    <span className="mr-auto font-semibold">أعلى تباين وأوضح قراءة</span>
+                  </div>
+                </button>
               </div>
             </div>
 
@@ -2700,100 +4051,42 @@ export default function App() {
               </button>
             </div>
 
-            {/* Account Management & Password */}
-            <div className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
-                <div className="font-bold text-sm text-white flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#4f46e5]" />
-                  <span>معلومات الحساب المسجل</span>
-                </div>
-                {isAdmin ? (
-                  <span className="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/40">
-                    حساب إداري ({ADMIN_EMAIL})
-                  </span>
-                ) : (
-                  <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
-                    حساب عميل
-                  </span>
-                )}
-              </div>
-
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between text-[#94a3b8]">
-                  <span>البريد الإلكتروني المسجل:</span>
-                  <span className="text-white font-mono dir-ltr">{userData.email}</span>
-                </div>
-                <div className="flex justify-between items-center text-[#94a3b8]">
-                  <span>رقم بطاقتك:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-amber-400 font-mono font-bold">{userData.cardNumber}</span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(userData.cardNumber.toString(), 'رقم بطاقتك')}
-                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white transition text-[10px] flex items-center gap-1 border border-slate-700 cursor-pointer"
-                      title="نسخ رقم بطاقتك"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>نسخ</span>
-                    </button>
+            {/* Logout / Login Account Card in Settings */}
+            <div className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] shadow-lg">
+              {isLoggedIn ? (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-right">
+                    <span className="font-bold text-xs text-white block">تسجيل الخروج من الحساب</span>
+                    <span className="text-[11px] text-slate-400">يمكنك تسجيل الخروج أو التبديل للحساب الثاني مباشرة من الأعلى</span>
                   </div>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-[#334155] space-y-2">
-                <div className="font-bold text-xs text-white flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-[#00e5ff]" />
-                  <span>تغيير الرمز / كلمة المرور</span>
-                </div>
-                <input
-                  type="password"
-                  value={changePassInput}
-                  onChange={(e) => setChangePassInput(e.target.value)}
-                  placeholder="أدخل الرمز أو كلمة المرور الجديدة"
-                  className="w-full p-2.5 rounded-xl border border-[#334155] bg-[#0f172a] text-white text-xs outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!changePassInput) {
-                      showToast('تنبيه', 'يرجى إدخال الرمز الجديد أولاً.', 'error');
-                      return;
-                    }
-                    setUserData((prev) => ({ ...prev, pass: changePassInput }));
-                    setChangePassInput('');
-                    showToast('تم الحفظ', 'تم تحديث كلمة المرور / الرمز بنجاح.', 'success');
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-[#4f46e5] hover:bg-[#4338ca] text-white text-xs font-bold transition"
-                >
-                  حفظ كلمة المرور
-                </button>
-              </div>
-
-              {/* Logout Button in Settings */}
-              <div className="pt-3 border-t border-[#334155]">
-                {isLoggedIn ? (
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full py-2.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-400 font-bold text-xs flex items-center justify-center gap-2 transition"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-400 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span>تسجيل الخروج من الحساب</span>
+                    <span>تسجيل الخروج</span>
                   </button>
-                ) : (
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-right">
+                    <span className="font-bold text-xs text-white block">حساب غير مسجل</span>
+                    <span className="text-[11px] text-slate-400">سجل الدخول لحفظ بطاقتك وتفعيل الحسابات المتعددة</span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
                       setAuthMode('login');
                       setIsLoginModalOpen(true);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                   >
                     <LogIn className="w-4 h-4" />
-                    <span>تسجيل الدخول إلى حسابك</span>
+                    <span>تسجيل الدخول</span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2825,13 +4118,26 @@ export default function App() {
 
             <button
               type="button"
+              onClick={() => setActiveTab("card")}
+              className={`flex-1 py-1 flex flex-col items-center gap-1 transition ${
+                activeTab === "card" ? "text-indigo-400 font-black" : "text-[#94a3b8] hover:text-white"
+              }`}
+              title="قسم البطاقة الرقمية المخصص للبطاقة فقط"
+            >
+              <CreditCard className="w-5 h-5" />
+              <span>البطاقة</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab("settings")}
               className={`flex-1 py-1 flex flex-col items-center gap-1 transition ${
                 activeTab === "settings" ? "text-indigo-400 font-black" : "text-[#94a3b8] hover:text-white"
               }`}
+              title="قسم الإعدادات للتحكم بالحسابات والرمز والمظهر"
             >
-              <CreditCard className="w-5 h-5" />
-              <span>بطاقتي</span>
+              <Settings className="w-5 h-5" />
+              <span>الإعدادات</span>
             </button>
 
             <button
@@ -2941,11 +4247,11 @@ export default function App() {
           </button>
           <button
             onClick={() => {
-              setChatInput('من هو الحساب الإداري للمتجر؟');
+              setChatInput('كيف تتم حماية حسابي ورصيدي؟');
             }}
             className="px-2 py-1 rounded-full bg-[#1e293b] hover:bg-[#28374e] text-indigo-300 whitespace-nowrap border border-[#334155]"
           >
-            🛡️ الحساب الإداري
+            🛡️ حماية الحساب
           </button>
           <button
             onClick={() => {
@@ -3067,30 +4373,15 @@ export default function App() {
                 />
               </div>
 
-              {/* Fast Login Presets */}
-              <div className="p-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-xs text-[#94a3b8] space-y-1.5">
-                <div className="text-[11px] font-bold text-white">خيارات تسجيل الدخول السريعة:</div>
-                <button
-                  type="button"
-                  onClick={() => handleFastLogin(ADMIN_EMAIL, '1234')}
-                  className="w-full text-right text-indigo-300 hover:text-indigo-200 text-[11px] flex items-center justify-between p-1 rounded bg-[#1e293b]/70 border border-[#334155]"
-                >
-                  <span className="font-bold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-indigo-400" />
-                    <span>الحساب الإداري الوحيد ({ADMIN_EMAIL})</span>
-                  </span>
-                  <span className="text-emerald-400 font-mono">1234</span>
-                </button>
+              {/* Demo test account helper strictly for regular customer */}
+              <div className="p-2.5 rounded-xl bg-[#0f172a] border border-[#334155] text-xs flex items-center justify-between">
+                <span className="text-[11px] text-[#94a3b8]">حساب تجريبي للزبائن:</span>
                 <button
                   type="button"
                   onClick={() => handleFastLogin('user@corex.iq', '1234')}
-                  className="w-full text-right text-slate-300 hover:text-white text-[11px] flex items-center justify-between p-1 rounded bg-[#1e293b]/70 border border-[#334155]"
+                  className="text-slate-300 hover:text-white text-[11px] font-mono px-2 py-1 rounded bg-[#1e293b] border border-[#334155] cursor-pointer"
                 >
-                  <span className="flex items-center gap-1">
-                    <User className="w-3 h-3 text-[#00e5ff]" />
-                    <span>حساب عميل عادي (user@corex.iq)</span>
-                  </span>
-                  <span className="text-emerald-400 font-mono">1234</span>
+                  user@corex.iq / 1234
                 </button>
               </div>
 
@@ -3624,11 +4915,8 @@ export default function App() {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* MODAL: REAL GOOGLE ADSENSE INTERSTITIAL POPUP (VISITORS) */}
-      {/* "العالم تطلعلهم اعلانات عشوائيه مربوطه بأدسنس وانا اربح"   */}
-      {/* ======================================================== */}
-      {randomPopupAd && !userData.isAdFreeSubscriber && (
+      {/* Real Google AdSense Interstitial Popup (Only when enabled by owner and visitor not ad-free) */}
+      {randomPopupAd && adsenseSettings.isAdsEnabled && !userData.isAdFreeSubscriber && (
         <GoogleAdSenseUnit
           slotType="interstitial"
           settings={adsenseSettings}

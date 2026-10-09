@@ -20,6 +20,7 @@ import {
   Globe,
   Lock,
   Layers,
+  Crown,
 } from 'lucide-react';
 
 interface AdminAdRevenueSubTabProps {
@@ -121,35 +122,107 @@ export const AdminAdRevenueSubTab: React.FC<AdminAdRevenueSubTabProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Top Banner: Real Google AdSense Connection Notice */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/60 via-[#1e293b] to-indigo-950/60 border border-blue-500/40 text-xs flex flex-wrap items-center justify-between gap-3 shadow-lg">
+      {/* Top Banner: Real Google AdSense Status Notice */}
+      <div className={`p-4 rounded-2xl border text-xs flex flex-wrap items-center justify-between gap-3 shadow-lg ${
+        adsenseSettings.isAdsEnabled
+          ? 'bg-gradient-to-r from-blue-950/60 via-[#1e293b] to-indigo-950/60 border-blue-500/40'
+          : 'bg-gradient-to-r from-slate-900 via-[#1e293b] to-zinc-900 border-amber-500/30'
+      }`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-sm shadow">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shadow ${
+            adsenseSettings.isAdsEnabled ? 'bg-blue-600' : 'bg-slate-700'
+          }`}>
             G
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-white text-sm">
-                نظام إعلانات Google AdSense الرسمي مفعل ومربوط
+                {adsenseSettings.isAdsEnabled
+                  ? 'نظام إعلانات Google AdSense الرسمي مفعل ومربوط'
+                  : 'الإعلانات معطلة بالكامل حالياً ⏸️ (الموقع خالٍ تماماً من الإعلانات)'}
               </span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30 flex items-center gap-1">
-                <Check className="w-3 h-3 text-emerald-400" />
-                <span>Active & Verified</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border flex items-center gap-1 ${
+                adsenseSettings.isAdsEnabled
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+              }`}>
+                <span>{adsenseSettings.isAdsEnabled ? 'Active & Verified' : 'معطلة بناءً على طلبك'}</span>
               </span>
             </div>
             <p className="text-[11px] text-[#94a3b8] mt-0.5">
-              معرف الناشر المعتمد: <span className="font-mono text-blue-300 font-bold">{adsenseSettings.publisherId}</span> • الأرباح تضاف مباشرة لحسابك الإداري
+              {adsenseSettings.isAdsEnabled
+                ? `معرف الناشر: ${adsenseSettings.publisherId} • الأرباح تضاف لحساب الإدارة`
+                : 'الموقع يعمل بدون أي إعلانات تجارية حتى تقوم بإضافة وتفعيل حسابك في Google AdSense بنفسك.'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[11px] bg-blue-950/80 px-2.5 py-1 rounded-lg text-blue-300 font-mono border border-blue-500/30">
-            AUTO-ADS: ENABLED
+          <span className={`text-[11px] px-2.5 py-1 rounded-lg font-mono border ${
+            adsenseSettings.isAdsEnabled
+              ? 'bg-blue-950/80 text-blue-300 border-blue-500/30'
+              : 'bg-slate-800 text-slate-400 border-slate-700'
+          }`}>
+            {adsenseSettings.isAdsEnabled ? 'AUTO-ADS: ENABLED' : 'ADS: DISABLED (0 ADS)'}
           </span>
-          <span className="text-[11px] bg-emerald-950/80 px-2.5 py-1 rounded-lg text-emerald-300 font-mono border border-emerald-500/30">
-            ads.txt: VERIFIED
+        </div>
+      </div>
+
+      {/* Guide & Architecture: How Google AdSense is 100% Cancelled on Plus Subscription */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-[#1e293b] to-yellow-950/30 border-2 border-amber-500/50 shadow-xl space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#334155]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Crown className="w-4 h-4 fill-amber-400" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                <span>آلية إلغاء وحجب إعلانات Google AdSense عند اشتراك المستخدم (Plus)</span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                  حجب تام 100%
+                </span>
+              </h4>
+              <p className="text-[11px] text-[#94a3b8]">
+                كيف يتوقف ظهور إعلانات أدسنس فورياً بمجرد اشتراك الزبون في باقة Plus (2,000 د.ع شهرياً أو 15,000 د.ع سنوياً)
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-mono text-amber-300 bg-black/40 px-2.5 py-1 rounded-lg border border-amber-500/30">
+            isAdFreeSubscriber === true
           </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs leading-relaxed">
+          <div className="p-3 rounded-xl bg-[#0f172a] border border-[#334155] space-y-2">
+            <div className="font-bold text-amber-300 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>1. منطق الحجب البرمجي لإعلانات أدسنس:</span>
+            </div>
+            <p className="text-slate-300 text-[11px]">
+              عند اشتراك أي مستخدم في باقة بلس، يتحول شرط الظهور التلقائي لـ Google AdSense إلى:
+            </p>
+            <pre className="p-2 rounded bg-black/60 text-emerald-400 font-mono text-[10px] dir-ltr overflow-x-auto border border-emerald-500/20">
+              {`{!user.isAdFreeSubscriber && (
+  <GoogleAdSenseUnit slotType="header_banner" />
+)}`}
+            </pre>
+            <p className="text-slate-400 text-[10px]">
+              مما يمنع استدعاء مكتبة <code>adsbygoogle.push()</code> أو حجز أي مساحات إعلانية في الواجهة، ويتمتع المشترك بتصفح نقي تماماً بدون أي إعلان.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[#0f172a] border border-[#334155] space-y-2">
+            <div className="font-bold text-blue-300 flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 text-blue-400" />
+              <span>2. كيف تربح من الإعلانات ومن الاشتراكات معاً؟</span>
+            </div>
+            <p className="text-slate-300 text-[11px]">
+              - <strong className="text-white">الزوار والحسابات المجانية:</strong> تظهر لهم إعلانات Google AdSense، وتربح أنت من كل ظهور ونقرة لحسابك المطور.
+            </p>
+            <p className="text-slate-300 text-[11px]">
+              - <strong className="text-white">مشتركو باقة بلس:</strong> تحجب الإعلانات عنهم نهائياً، وفي المقابل يدفعون لك رسوم الاشتراك (2,000 د.ع أو 15,000 د.ع) مباشرة إلى رصيدك.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -266,6 +339,41 @@ export const AdminAdRevenueSubTab: React.FC<AdminAdRevenueSubTabProps> = ({
         </div>
 
         <form onSubmit={handleSaveAdSenseConfig} className="space-y-4">
+          {/* Master AdSense Switch */}
+          <div className="p-4 rounded-xl bg-[#0f172a] border border-[#334155] flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white text-xs">تفعيل إعلانات Google AdSense في المتجر:</span>
+                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${adsenseSettings.isAdsEnabled ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-red-500/20 text-red-400 border-red-500/40'}`}>
+                  {adsenseSettings.isAdsEnabled ? 'مفعلة وتعمل ✅' : 'معطلة بالكامل (تم إلغاء الإعلانات) ⏸️'}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#94a3b8]">
+                {adsenseSettings.isAdsEnabled
+                  ? 'إعلانات Google AdSense مفعلة وتظهر للزوار المجانيين فقط (وتحجب 100% لمشتركي باقة بلس).'
+                  : 'تم إلغاء وتعطيل كافة الإعلانات تماماً بناءً على طلبك لأنك لم تفعل أدسنس بعد. لن يظهر أي إعلان حتى تقوم بتفعيل هذا الزر.'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const nextState = !adsenseSettings.isAdsEnabled;
+                onUpdateAdSenseSettings({
+                  ...adsenseSettings,
+                  isAdsEnabled: nextState,
+                });
+              }}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow active:scale-95 ${
+                adsenseSettings.isAdsEnabled
+                  ? 'bg-red-600 hover:bg-red-500 text-white'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              }`}
+            >
+              {adsenseSettings.isAdsEnabled ? 'إيقاف وتعطيل الإعلانات ⏸️' : 'تفعيل إعلانات أدسنس الآن ✅'}
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             <div>
               <label className="block text-[#94a3b8] mb-1 font-bold">معرف الناشر (Publisher ID):</label>
@@ -340,37 +448,40 @@ export const AdminAdRevenueSubTab: React.FC<AdminAdRevenueSubTabProps> = ({
         </form>
       </div>
 
-      {/* Google Certified Clean Advertisers Preview Showcase */}
+      {/* Explanation Card: Google AdSense Status and Plus Subscription Ad Cancellation */}
       <div className="bg-[#1e293b] p-5 rounded-2xl border border-[#334155] space-y-3 shadow">
         <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4 text-blue-400" />
             <h4 className="font-bold text-sm text-white">
-              نماذج إعلانات شبكة Google AdSense النشطة في المتجر ({REAL_GOOGLE_ADS_CREATIVES.length})
+              حالة إعلانات Google AdSense وحجبها عند الاشتراك (Plus)
             </h4>
           </div>
-          <span className="text-xs text-emerald-400 font-mono bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-            فلترة أخلاقية 100%
+          <span className="text-xs text-amber-400 font-mono bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-500/30">
+            {adsenseSettings.isAdsEnabled ? 'أدسنس مفعل حالياً' : 'الإعلانات معطلة (طلب المطور)'}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {REAL_GOOGLE_ADS_CREATIVES.slice(0, 3).map((creative) => (
-            <div key={creative.id} className="p-3 bg-[#0f172a] rounded-xl border border-[#334155] space-y-2 text-xs">
-              <div className="flex justify-between items-center text-[10px]">
-                <span className="font-bold text-blue-400">{creative.advertiser}</span>
-                <span className="text-slate-500 font-mono">{creative.badge}</span>
-              </div>
-              <div className="aspect-video rounded-lg overflow-hidden relative">
-                <img src={creative.imageUrl} alt={creative.headline} className="w-full h-full object-cover" />
-                <span className="absolute bottom-1 right-1 text-[9px] bg-black/75 px-1.5 py-0.5 rounded text-white font-mono">
-                  +{creative.revenuePerViewIQD} د.ع/ظهور
-                </span>
-              </div>
-              <p className="font-bold text-white line-clamp-1">{creative.headline}</p>
-              <p className="text-[10px] text-slate-400 line-clamp-2">{creative.description}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs leading-relaxed">
+          <div className="p-3 rounded-xl bg-[#0f172a] border border-[#334155] space-y-1.5">
+            <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+              <Check className="w-4 h-4" />
+              <span>إلغاء الإعلانات الداخلية تماماً:</span>
+            </span>
+            <p className="text-slate-300 text-[11px]">
+              تم إلغاء وحذف كافة الإعلانات الداخلية الخاصة بالنظام بالكامل لأنك لم تفعل Google AdSense بعد. لن تظهر أي إعلانات للزوار حتى تقوم بربط حسابك والموافقة عليه في منصة Google AdSense ثم تفعيل المفتاح بالأعلى.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[#0f172a] border border-[#334155] space-y-1.5">
+            <span className="font-bold text-amber-300 flex items-center gap-1.5">
+              <Crown className="w-4 h-4 text-amber-400" />
+              <span>كيف يلغي الاشتراك إعلانات أدسنس؟</span>
+            </span>
+            <p className="text-slate-300 text-[11px]">
+              عندما يشترك الزبون في باقة Plus (2,000 د.ع أو 15,000 د.ع)، يتم منع تحميل كود Google AdSense (وحجب وسم <code>ins.adsbygoogle</code>) بنسبة 100% عن حسابه، فيتصفح المتجر والمحفظة دون أي إعلان إطلاقاً.
+            </p>
+          </div>
         </div>
       </div>
 

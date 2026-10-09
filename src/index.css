@@ -10,7 +10,58 @@
     background-color: #0b0e14;
     color: #ffffff;
     min-height: 100vh;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
+}
+
+/* High Contrast Charcoal Dark Mode Theme ("وضع داكن آخر أكثر تباينًا بلمسات رمادية داكنة") */
+body.theme-charcoal {
+  background-color: #09090b !important;
+}
+
+.theme-charcoal {
+  color-scheme: dark;
+}
+
+.theme-charcoal [class*="bg-[#0f172a]"],
+.theme-charcoal.bg-[#0f172a] {
+  background-color: #0c0c0e !important;
+}
+
+.theme-charcoal [class*="bg-[#1e293b]"] {
+  background-color: #18181b !important;
+}
+
+.theme-charcoal [class*="bg-[#161b24]"] {
+  background-color: #141416 !important;
+}
+
+.theme-charcoal [class*="bg-[#0b0e14]"] {
+  background-color: #09090b !important;
+}
+
+.theme-charcoal [class*="border-[#334155]"] {
+  border-color: #3f3f46 !important;
+}
+
+.theme-charcoal [class*="text-[#94a3b8]"] {
+  color: #a1a1aa !important;
+}
+
+.theme-charcoal .rainbow-border {
+  background: #141416 !important;
+}
+
+.theme-charcoal [class*="bg-[#1e1b4b]"] {
+  background-color: #18181b !important;
+}
+
+.theme-charcoal input,
+.theme-charcoal textarea,
+.theme-charcoal select {
+  background-color: #141416 !important;
+  border-color: #3f3f46 !important;
+  color: #ffffff !important;
 }
 
 /* Custom Holographic / Rainbow Border Animation */

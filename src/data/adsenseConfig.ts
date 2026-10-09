@@ -4,6 +4,7 @@ export interface AdSenseSettings {
   inFeedNativeSlot: string; // e.g. 4512789630
   interstitialPopupSlot: string; // e.g. 9632587410
   autoAdsEnabled: boolean;
+  isAdsEnabled: boolean; // False until the owner explicitly activates Google AdSense
   isLiveConnected: boolean;
   accountStatus: 'active' | 'approved' | 'review' | 'test';
   currency: 'IQD' | 'USD';
@@ -22,17 +23,18 @@ export const DEFAULT_ADSENSE_SETTINGS: AdSenseSettings = {
   headerBannerSlot: '7845123690',
   inFeedNativeSlot: '4512789630',
   interstitialPopupSlot: '9632587410',
-  autoAdsEnabled: true,
-  isLiveConnected: true,
-  accountStatus: 'approved',
+  autoAdsEnabled: false,
+  isAdsEnabled: false, // Default is disabled until user activates AdSense
+  isLiveConnected: false,
+  accountStatus: 'review',
   currency: 'IQD',
-  todayEarningsIQD: 18400, // أرباح اليوم بالدينار
-  thisMonthEarningsIQD: 345000,
-  totalEarningsIQD: 890000, // إجمالي أرباح أدسنس
-  totalImpressions: 24650,
-  totalClicks: 1420,
-  pageRpmIQD: 2850,
-  ctrPercent: 5.76,
+  todayEarningsIQD: 0,
+  thisMonthEarningsIQD: 0,
+  totalEarningsIQD: 0,
+  totalImpressions: 0,
+  totalClicks: 0,
+  pageRpmIQD: 0,
+  ctrPercent: 0,
   ethicalFilterLevel: 'strict',
 };
 

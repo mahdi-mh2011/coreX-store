@@ -21,8 +21,13 @@ import {
   Monitor,
   Crown,
   Code2,
+  Edit3,
+  UserCheck,
+  FileText,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
-import { StoredUserAccount, Product, SupportTicket, AppNotification, ADMIN_EMAIL } from '../App';
+import { StoredUserAccount, Product, SupportTicket, AppNotification } from '../App';
 import { EthicalAd, AdSystemStats } from '../data/ethicalAds';
 import { AdSenseSettings } from '../data/adsenseConfig';
 import { AdminAdRevenueSubTab } from './AdminAdRevenueSubTab';
@@ -48,6 +53,8 @@ interface DesktopAdminDashboardProps {
   onWithdrawProfitsToAdminWallet: () => void;
   onSwitchToMobilePreview: () => void;
   onOpenPlusArchitecture?: () => void;
+  onUpdateUserName?: (userId: string, newName: string) => void;
+  onAdminSetSubscription?: (userIdOrCardNumber: string, plan: 'monthly' | 'yearly' | 'lifetime' | 'cancel') => void;
   onLogout: () => void;
 }
 
@@ -72,6 +79,8 @@ export const DesktopAdminDashboard: React.FC<DesktopAdminDashboardProps> = ({
   onWithdrawProfitsToAdminWallet,
   onSwitchToMobilePreview,
   onOpenPlusArchitecture,
+  onUpdateUserName,
+  onAdminSetSubscription,
   onLogout,
 }) => {
   const [adminSubTab, setAdminSubTab] = useState<'accounts' | 'broadcast' | 'products' | 'tickets' | 'ads'>('accounts');
@@ -79,6 +88,35 @@ export const DesktopAdminDashboard: React.FC<DesktopAdminDashboardProps> = ({
   const [adminTopUpUser, setAdminTopUpUser] = useState<StoredUserAccount | null>(null);
   const [adminTopUpAmount, setAdminTopUpAmount] = useState('');
   const [viewingUserAccount, setViewingUserAccount] = useState<StoredUserAccount | null>(null);
+
+  // Edit cardholder name state
+  const [editingUserNameUser, setEditingUserNameUser] = useState<StoredUserAccount | null>(null);
+  const [newUserNameInput, setNewUserNameInput] = useState('');
+
+  // Manage / Grant Plus subscription state ("وخلي الحساب المطور يكدر يشترك اي شخص اشتراك عن طريق رقم بطاقته او عن طريق من قائمه حسابات")
+  const [managingSubUser, setManagingSubUser] = useState<StoredUserAccount | null>(null);
+
+  // 10-Digit Card Number Dossier Lookup state
+  const [lookupCardNumberInput, setLookupCardNumberInput] = useState('');
+  const [lookupResultUser, setLookupResultUser] = useState<StoredUserAccount | null>(null);
+  const [lookupError, setLookupError] = useState('');
+
+  const handleCardLookup = (cardNum?: string) => {
+    const targetCard = (cardNum || lookupCardNumberInput).trim();
+    if (!targetCard) {
+      setLookupError('يرجى إدخال رقم البطاقة المكون من 10 أرقام.');
+      setLookupResultUser(null);
+      return;
+    }
+    const found = storedUsers.find((u) => u.cardNumber === targetCard);
+    if (found) {
+      setLookupResultUser(found);
+      setLookupError('');
+    } else {
+      setLookupResultUser(null);
+      setLookupError(`لم يتم العثور على أي حساب مسجل برقم البطاقة: ${targetCard}`);
+    }
+  };
 
   // Add Product form inputs
   const [prodName, setProdName] = useState('');
@@ -115,7 +153,7 @@ export const DesktopAdminDashboard: React.FC<DesktopAdminDashboardProps> = ({
               </span>
             </div>
             <p className="text-xs text-[#94a3b8] mt-1">
-              المدير المعتمد: <strong className="text-white">{ADMIN_EMAIL}</strong> • تحكم شامل بحسابات الزبائن، السلع، وأرباح الإعلانات
+              حساب الإدارة المعتمد • تحكم شامل بحسابات الزبائن، السلع، باقات الاشتراك، وأرباح الإعلانات
             </p>
           </div>
         </div>
@@ -279,6 +317,167 @@ export const DesktopAdminDashboard: React.FC<DesktopAdminDashboardProps> = ({
             </div>
           </div>
 
+          {/* 💳 CARD NUMBER DOSSIER & LOOKUP TOOL (الاستعلام ومعرفة جميع معلومات الحساب برقم البطاقة 10 أرقام) */}
+          <div className="bg-gradient-to-r from-[#1e293b] via-[#1a2538] to-[#1e293b] p-4 sm:p-5 rounded-2xl border-2 border-indigo-500/40 shadow-xl space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">
+                    الاستعلام الشامل برقم البطاقة (10 أرقام) ومعرفة جميع معلوماته
+                  </h3>
+                  <p className="text-[11px] text-[#94a3b8]">
+                    أدخل رقم بطاقة أي شخص لعرض كافة تفاصيل حسابه، رصيده، مشترياته، والتحكم باسم بطاقته ورصيده فورياً.
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-mono border border-indigo-500/30">
+                10-Digit Card Dossier
+              </span>
+            </div>
+
+            {/* Input & Lookup Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCardLookup();
+              }}
+              className="flex items-center gap-2"
+            >
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={lookupCardNumberInput}
+                  onChange={(e) => {
+                    const clean = e.target.value.replace(/\D/g, '');
+                    setLookupCardNumberInput(clean);
+                    if (clean.length === 10) handleCardLookup(clean);
+                  }}
+                  placeholder="أدخل رقم البطاقة المكون من 10 أرقام (مثال: 7492018432)..."
+                  className="w-full p-2.5 pr-9 rounded-xl border border-[#334155] bg-[#0f172a] text-white text-xs outline-none font-mono focus:border-[#4f46e5]"
+                />
+                <CreditCard className="w-4 h-4 text-[#94a3b8] absolute right-3 top-1/2 -translate-y-1/2" />
+              </div>
+
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center gap-1.5 shadow shrink-0 cursor-pointer"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>استعلام عن البطاقة</span>
+              </button>
+            </form>
+
+            {/* Lookup Error Notice */}
+            {lookupError && (
+              <div className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{lookupError}</span>
+              </div>
+            )}
+
+            {/* Comprehensive Dossier Card for the Looked-up User */}
+            {lookupResultUser && (
+              <div className="p-4 rounded-xl bg-[#0f172a] border border-indigo-500/50 space-y-3 animate-in fade-in duration-150">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#334155]">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="font-bold text-sm text-white">ملف معلومات صاحب البطاقة:</span>
+                    <strong className="text-base text-amber-300 font-bold">{lookupResultUser.name}</strong>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setManagingSubUser(lookupResultUser)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                      title="تفعيل أو إلغاء اشتراك بلس للبطاقة"
+                    >
+                      <Crown className="w-3.5 h-3.5 fill-amber-400" />
+                      <span>{lookupResultUser.isAdFreeSubscriber ? 'إدارة اشتراك بلس 👑' : 'تفعيل اشتراك بلس ⭐'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingUserNameUser(lookupResultUser);
+                        setNewUserNameInput(lookupResultUser.name);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>تغيير اسم البطاقة</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminTopUpUser(lookupResultUser)}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>شحن رصيد</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLookupResultUser(null)}
+                      className="text-[#94a3b8] hover:text-white p-1"
+                      title="إغلاق التقرير"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                  <div className="p-2.5 rounded-lg bg-[#1e293b] border border-[#334155]">
+                    <span className="text-[#94a3b8] block text-[10px]">رقم البطاقة (10 أرقام):</span>
+                    <span className="font-mono font-bold text-amber-400 text-sm">{lookupResultUser.cardNumber}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[#1e293b] border border-[#334155]">
+                    <span className="text-[#94a3b8] block text-[10px]">الرصيد الحالي:</span>
+                    <span className="font-mono font-bold text-emerald-400 text-sm">{lookupResultUser.balance.toLocaleString()} د.ع</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[#1e293b] border border-[#334155]">
+                    <span className="text-[#94a3b8] block text-[10px]">البريد الإلكتروني:</span>
+                    <span className="font-mono text-white text-[11px] dir-ltr block truncate">{lookupResultUser.email}</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[#1e293b] border border-[#334155]">
+                    <span className="text-[#94a3b8] block text-[10px]">حالة اشتراك بلس:</span>
+                    <span className="font-bold text-amber-300 text-xs">
+                      {lookupResultUser.isAdFreeSubscriber
+                        ? `بلس (${lookupResultUser.subscriptionPlan === 'yearly' ? 'سنوي' : 'شهري'})`
+                        : 'حساب مجاني'}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[#1e293b] border border-[#334155]">
+                    <span className="text-[#94a3b8] block text-[10px]">شكد حولوا (الحوالات):</span>
+                    <span className="font-mono font-bold text-amber-400 text-xs">{lookupResultUser.totalTransferred.toLocaleString()} د.ع ({lookupResultUser.transfersCount})</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[#1e293b] border border-[#334155]">
+                    <span className="text-[#94a3b8] block text-[10px]">شكد سحبوا / اشتروا:</span>
+                    <span className="font-mono font-bold text-[#00e5ff] text-xs">{lookupResultUser.totalWithdrawnOrSpent.toLocaleString()} د.ع ({lookupResultUser.purchasesCount})</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[#1e293b] border border-[#334155]">
+                    <span className="text-[#94a3b8] block text-[10px]">عمولات المتجر المستقطعة:</span>
+                    <span className="font-mono font-bold text-emerald-400 text-xs">+{lookupResultUser.totalCommission.toLocaleString()} د.ع</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-[#1e293b] border border-[#334155]">
+                    <span className="text-[#94a3b8] block text-[10px]">آخر نشاط وتاريخ التسجيل:</span>
+                    <span className="text-[10px] text-slate-300 block">{lookupResultUser.lastActive} • {lookupResultUser.joinedDate}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Search bar */}
           <div className="bg-[#1e293b] p-3 rounded-2xl border border-[#334155] flex items-center gap-3">
             <Search className="w-4 h-4 text-[#94a3b8]" />
@@ -311,27 +510,59 @@ export const DesktopAdminDashboard: React.FC<DesktopAdminDashboardProps> = ({
                 {filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-[#253248] transition">
                     <td className="p-3.5">
-                      <div className="font-bold text-white">{user.name}</div>
+                      <div className="font-bold text-white flex items-center gap-1.5">
+                        <span>{user.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingUserNameUser(user);
+                            setNewUserNameInput(user.name);
+                          }}
+                          className="text-amber-400 hover:text-amber-300 p-0.5"
+                          title="تغيير اسم صاحب البطاقة"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                      </div>
                       <div className="text-[11px] text-[#94a3b8] font-mono dir-ltr text-right">{user.email}</div>
                     </td>
                     <td className="p-3.5">
-                      <span className="font-mono font-bold text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/30">
-                        {user.cardNumber}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLookupCardNumberInput(user.cardNumber);
+                          handleCardLookup(user.cardNumber);
+                        }}
+                        className="font-mono font-bold text-amber-400 bg-amber-950/40 hover:bg-amber-900/60 px-2 py-0.5 rounded border border-amber-500/30 cursor-pointer"
+                        title="استعلام شامل عن هذه البطاقة"
+                      >
+                        {user.cardNumber} 🔍
+                      </button>
                     </td>
                     <td className="p-3.5 font-mono font-bold text-emerald-400">
                       {user.balance.toLocaleString()} د.ع
                     </td>
                     <td className="p-3.5">
                       {user.isAdFreeSubscriber ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setManagingSubUser(user)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-bold cursor-pointer transition"
+                          title="تعديل باقة بلس للمستخدم"
+                        >
                           <Crown className="w-3 h-3 fill-amber-400" />
                           <span>بلس {user.subscriptionPlan === 'yearly' ? 'سنوي' : 'شهري'}</span>
-                        </span>
+                        </button>
                       ) : (
-                        <span className="text-[10px] text-slate-500 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
-                          حساب عادي
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setManagingSubUser(user)}
+                          className="text-[10px] text-amber-400 hover:text-amber-300 bg-amber-950/30 hover:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/30 cursor-pointer flex items-center gap-1 transition"
+                          title="تفعيل باقة بلس للمستخدم"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>تفعيل بلس</span>
+                        </button>
                       )}
                     </td>
                     <td className="p-3.5 font-mono text-amber-400">
@@ -348,6 +579,29 @@ export const DesktopAdminDashboard: React.FC<DesktopAdminDashboardProps> = ({
                     </td>
                     <td className="p-3.5 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setManagingSubUser(user)}
+                          className={`p-1.5 rounded-lg border cursor-pointer transition ${
+                            user.isAdFreeSubscriber
+                              ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 hover:text-amber-300'
+                          }`}
+                          title="تفعيل / إدارة اشتراك بلس"
+                        >
+                          <Crown className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingUserNameUser(user);
+                            setNewUserNameInput(user.name);
+                          }}
+                          className="p-1.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-500/30 cursor-pointer"
+                          title="تغيير اسم صاحب البطاقة"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => setViewingUserAccount(user)}
@@ -661,6 +915,29 @@ export const DesktopAdminDashboard: React.FC<DesktopAdminDashboardProps> = ({
                 <span className="text-emerald-300 font-bold">العمولات المستقطعة للمتجر:</span>
                 <span className="font-mono font-bold text-emerald-400">+{viewingUserAccount.totalCommission.toLocaleString()} د.ع</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-[#94a3b8]">سجل المعاملات الخاص بالبطاقة:</span>
+                <span className="font-mono text-white font-bold">{viewingUserAccount.transactions?.length || 0} حركة</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#94a3b8]">أكواد البطاقات المشتراة:</span>
+                <span className="font-mono text-emerald-400 font-bold">{viewingUserAccount.purchasedCodes?.length || 0} كود</span>
+              </div>
+              {viewingUserAccount.transactions && viewingUserAccount.transactions.length > 0 && (
+                <div className="pt-2 border-t border-[#334155] space-y-1.5">
+                  <span className="text-[10px] text-[#94a3b8] block font-bold">آخر الحركات الخاصة بهذا الحساب:</span>
+                  <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                    {viewingUserAccount.transactions.slice(0, 3).map((t) => (
+                      <div key={t.id} className="p-1.5 rounded-lg bg-black/40 border border-[#334155]/60 flex items-center justify-between text-[10px]">
+                        <span className="text-slate-200 truncate max-w-[180px]">{t.title}</span>
+                        <span className={`font-mono font-bold ${t.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {t.amount > 0 ? '+' : ''}{t.amount.toLocaleString()} د.ع
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between pt-1 border-t border-[#334155]">
                 <span className="text-amber-300 font-bold flex items-center gap-1">
                   <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
@@ -684,6 +961,232 @@ export const DesktopAdminDashboard: React.FC<DesktopAdminDashboardProps> = ({
             >
               إغلاق
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Cardholder Name Modal (تغيير اسم بطاقة أي شخص من قبل المطور) */}
+      {editingUserNameUser && (
+        <div className="fixed inset-0 z-[1900] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1e293b] p-6 rounded-2xl border-2 border-amber-500/60 w-full max-w-sm text-right shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
+              <div className="flex items-center gap-2 text-white font-bold text-sm">
+                <Edit3 className="w-4 h-4 text-amber-400" />
+                <span>تغيير اسم البطاقة (صاحب الحساب)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingUserNameUser(null)}
+                className="text-[#94a3b8] hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs space-y-1.5 p-3 rounded-xl bg-[#0f172a] border border-[#334155]">
+              <div className="flex justify-between">
+                <span className="text-[#94a3b8]">رقم البطاقة (10 أرقام):</span>
+                <span className="font-mono font-bold text-amber-400">{editingUserNameUser.cardNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#94a3b8]">الاسم الحالي للبطاقة:</span>
+                <span className="text-white font-bold">{editingUserNameUser.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#94a3b8]">البريد الإلكتروني:</span>
+                <span className="text-white font-mono dir-ltr">{editingUserNameUser.email}</span>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = newUserNameInput.trim();
+                if (trimmed && onUpdateUserName) {
+                  onUpdateUserName(editingUserNameUser.id, trimmed);
+                  if (lookupResultUser && lookupResultUser.id === editingUserNameUser.id) {
+                    setLookupResultUser({ ...lookupResultUser, name: trimmed });
+                  }
+                  setEditingUserNameUser(null);
+                }
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-[#94a3b8] mb-1">
+                  الاسم الجديد للبطاقة:
+                </label>
+                <input
+                  type="text"
+                  value={newUserNameInput}
+                  onChange={(e) => setNewUserNameInput(e.target.value)}
+                  placeholder="أدخل الاسم الجديد للبطاقة..."
+                  className="w-full p-2.5 rounded-xl border border-[#334155] bg-[#0f172a] text-white text-xs outline-none focus:border-amber-400"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  حفظ وتحديث اسم البطاقة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingUserNameUser(null)}
+                  className="px-4 py-2.5 bg-[#334155] hover:bg-[#475569] text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Grant / Manage Plus Subscription Modal ("وخلي الحساب المطور يكدر يشترك اي شخص اشتراك عن طريق رقم بطاقته او عن طريق من قائمه حسابات") */}
+      {managingSubUser && (
+        <div className="fixed inset-0 z-[1900] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#1e293b] p-6 rounded-2xl border-2 border-amber-500/60 w-full max-w-sm text-right shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-[#334155]">
+              <div className="flex items-center gap-2 text-white font-bold text-sm">
+                <Crown className="w-5 h-5 text-amber-400 fill-amber-400" />
+                <span>إدارة اشتراك بلس (Plus) للمستخدم</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManagingSubUser(null)}
+                className="text-[#94a3b8] hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs space-y-1.5 p-3 rounded-xl bg-[#0f172a] border border-[#334155]">
+              <div className="flex justify-between">
+                <span className="text-[#94a3b8]">صاحب الحساب:</span>
+                <span className="text-white font-bold">{managingSubUser.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#94a3b8]">رقم البطاقة (10 أرقام):</span>
+                <span className="font-mono font-bold text-amber-400">{managingSubUser.cardNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#94a3b8]">الحالة الحالية:</span>
+                <span className="font-bold">
+                  {managingSubUser.isAdFreeSubscriber ? (
+                    <span className="text-amber-400">
+                      مشترك بلس ({managingSubUser.subscriptionPlan === 'yearly' ? 'سنوي' : 'شهري'} - حتى {managingSubUser.subscriptionExpiry})
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">حساب عادي (غير مشترك)</span>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1 text-xs">
+              <p className="text-[#94a3b8] text-[11px] leading-relaxed">
+                بصفتك المطور، يمكنك إهداء وتفعيل اشتراك بلس لهذا المستخدم فوراً وبدون أي خصم من رصيده:
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onAdminSetSubscription) {
+                    onAdminSetSubscription(managingSubUser.id, 'monthly');
+                    if (lookupResultUser && (lookupResultUser.id === managingSubUser.id || lookupResultUser.cardNumber === managingSubUser.cardNumber)) {
+                      setLookupResultUser({
+                        ...lookupResultUser,
+                        isAdFreeSubscriber: true,
+                        subscriptionPlan: 'monthly',
+                      });
+                    }
+                  }
+                  setManagingSubUser(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-bold text-xs flex items-center justify-center gap-1.5 transition shadow cursor-pointer active:scale-95"
+              >
+                <Crown className="w-3.5 h-3.5 fill-black" />
+                <span>تفعيل باقة بلس الشهرية (30 يوماً)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onAdminSetSubscription) {
+                    onAdminSetSubscription(managingSubUser.id, 'yearly');
+                    if (lookupResultUser && (lookupResultUser.id === managingSubUser.id || lookupResultUser.cardNumber === managingSubUser.cardNumber)) {
+                      setLookupResultUser({
+                        ...lookupResultUser,
+                        isAdFreeSubscriber: true,
+                        subscriptionPlan: 'yearly',
+                      });
+                    }
+                  }
+                  setManagingSubUser(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-400 hover:brightness-110 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow cursor-pointer active:scale-95"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>تفعيل باقة بلس السنوية VIP (365 يوماً)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (onAdminSetSubscription) {
+                    onAdminSetSubscription(managingSubUser.id, 'lifetime');
+                    if (lookupResultUser && (lookupResultUser.id === managingSubUser.id || lookupResultUser.cardNumber === managingSubUser.cardNumber)) {
+                      setLookupResultUser({
+                        ...lookupResultUser,
+                        isAdFreeSubscriber: true,
+                        subscriptionPlan: 'yearly',
+                      });
+                    }
+                  }
+                  setManagingSubUser(null);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-500 hover:brightness-110 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow cursor-pointer active:scale-95"
+              >
+                <Crown className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                <span>تفعيل باقة بلس الدائمة (VIP مدى الحياة) ⭐</span>
+              </button>
+
+              {managingSubUser.isAdFreeSubscriber && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onAdminSetSubscription) {
+                      onAdminSetSubscription(managingSubUser.id, 'cancel');
+                      if (lookupResultUser && (lookupResultUser.id === managingSubUser.id || lookupResultUser.cardNumber === managingSubUser.cardNumber)) {
+                        setLookupResultUser({
+                          ...lookupResultUser,
+                          isAdFreeSubscriber: false,
+                          subscriptionPlan: undefined,
+                          subscriptionExpiry: undefined,
+                        });
+                      }
+                    }
+                    setManagingSubUser(null);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 text-red-400 font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>إلغاء اشتراك بلس للمستخدم</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setManagingSubUser(null)}
+                className="w-full py-2 rounded-xl bg-[#334155] hover:bg-[#475569] text-white text-xs font-bold cursor-pointer transition"
+              >
+                إغلاق
+              </button>
+            </div>
           </div>
         </div>
       )}
